@@ -9,8 +9,13 @@ let started = false;
 
 function connect() {
   const { setConnection, setMeasure, setError } = useMeasureStore.getState();
+  const url = getWsUrl();
+  if (!url) {
+    setConnection('disconnected');
+    return;
+  }
   setConnection('connecting');
-  ws = new WebSocket(getWsUrl());
+  ws = new WebSocket(url);
 
   ws.onopen = () => setConnection('connected');
   ws.onclose = () => {
