@@ -69,8 +69,12 @@
           ]
         }
       ],
-      "category": "public.app-category.business"
+      "category": "public.app-category.business",
+      "identity": null,
+      "gatekeeperAssess": false,
+      "hardenedRuntime": false
     },
+    "afterSign": "scripts/ad-hoc-sign.js",
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
