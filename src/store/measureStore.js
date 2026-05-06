@@ -8,12 +8,20 @@ export const useMeasureStore = create((set) => ({
   status: 'idle', // 'idle' | 'measuring' | 'ready' | 'error'
   connection: 'disconnected', // 'connecting' | 'connected' | 'disconnected'
   error: null,
+  receivedAt: null,
+  measureCount: 0,
 
-  setMeasure: (measure) => set({ measure, status: 'ready', error: null }),
+  setMeasure: (measure) => set((state) => ({
+    measure,
+    status: 'ready',
+    error: null,
+    receivedAt: Date.now(),
+    measureCount: state.measureCount + 1,
+  })),
   setStatus: (status) => set({ status }),
   setConnection: (connection) => set({ connection }),
   setError: (error) => set({ error, status: 'error' }),
-  reset: () => set({ measure: null, status: 'idle', error: null }),
+  reset: () => set({ measure: null, status: 'idle', error: null, receivedAt: null }),
 }));
 
 // Stable selectors — defined once, referenced by hooks below to keep
