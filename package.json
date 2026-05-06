@@ -1,0 +1,72 @@
+{
+  "name": "mobilax-weighing",
+  "version": "0.1.0",
+  "description": "Mobilax — application de pesée & volumétrie connectée Hengxun (Web + Windows)",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:web": "vite",
+    "dev:server": "nodemon server/index.js",
+    "dev:electron": "concurrently -k \"npm:dev:server\" \"npm:dev:web\" \"wait-on http://localhost:5173 && node scripts/launch-electron.js\"",
+    "build:web": "vite build",
+    "build:electron": "npm run build:web && electron-builder",
+    "start:server": "node server/index.js",
+    "start:web": "vite preview"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "electron-updater": "^6.3.0",
+    "express": "^4.19.2",
+    "qrcode": "^1.5.4",
+    "serialport": "^12.0.0",
+    "ws": "^8.18.0",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "nodemon": "^3.1.4",
+    "postcss": "^8.4.39",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.3.1",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.mobilax.weighing",
+    "productName": "Mobilax Weighing",
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "smdesigncompany",
+        "repo": "mobilax-weighing"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ],
+      "category": "public.app-category.business"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
