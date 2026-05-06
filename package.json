@@ -10,6 +10,7 @@
     "dev:electron": "concurrently -k \"npm:dev:server\" \"npm:dev:web\" \"wait-on http://localhost:5173 && node scripts/launch-electron.js\"",
     "build:web": "vite build",
     "build:electron": "npm run build:web && electron-builder",
+    "start": "node server/index.js",
     "start:server": "node server/index.js",
     "start:web": "vite preview"
   },
