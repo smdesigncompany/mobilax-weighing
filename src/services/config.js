@@ -2,18 +2,18 @@
 // Priority:
 //   1. localStorage override ("mobilax.apiBase") — set via the app settings UI
 //   2. Build-time env: import.meta.env.VITE_API_BASE
-//   3. Same origin (works for "all-in-one" deploys where backend serves the UI)
-//
-// API_BASE example: "https://api.mobilax.app"
+//   3. Hardcoded production default below
+//   4. Same origin (works for "all-in-one" deploys where backend serves the UI)
 
 const LS_KEY = 'mobilax.apiBase';
+const DEFAULT_API_BASE = 'https://mobilax-weighing.onrender.com';
 
 export function getApiBase() {
   const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(LS_KEY) : null;
   if (stored) return stripTrailingSlash(stored);
   const fromEnv = import.meta.env.VITE_API_BASE;
   if (fromEnv) return stripTrailingSlash(fromEnv);
-  return '';
+  return DEFAULT_API_BASE;
 }
 
 export function setApiBase(url) {
