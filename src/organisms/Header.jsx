@@ -19,7 +19,6 @@ function HeaderImpl() {
         <UpdateBadge />
         <SerialStatus />
         <StatusIndicator />
-        <ConnectionStatus />
         <SettingsButton />
       </div>
     </header>

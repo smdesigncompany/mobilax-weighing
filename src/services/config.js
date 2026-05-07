@@ -6,7 +6,8 @@
 //   4. Same origin (works for "all-in-one" deploys where backend serves the UI)
 
 const LS_KEY = 'mobilax.apiBase';
-const DEFAULT_API_BASE = 'https://mobilax-weighing.onrender.com';
+// Cleared during COM-only testing. Restore to enable cloud sync later.
+const DEFAULT_API_BASE = '';
 
 export function getApiBase() {
   const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(LS_KEY) : null;
