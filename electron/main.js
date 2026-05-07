@@ -75,6 +75,33 @@ function createWindow() {
     return { ok: true };
   });
 
+  // Scan all available serial ports on the host.
+  ipcMain.handle('serial:list', async () => {
+    if (!serialModule?.listPorts) return { ok: false, error: 'serial module unavailable' };
+    try {
+      const ports = await serialModule.listPorts();
+      return { ok: true, ports };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  // Reconnect on a different COM port at runtime.
+  ipcMain.handle('serial:reconnect', async (_e, { path, baudRate }) => {
+    if (!serialModule?.setupSerial) return { ok: false, error: 'serial module unavailable' };
+    try {
+      if (serialHandle?.close) await new Promise((r) => { try { serialHandle.close(); } finally { setTimeout(r, 200); } });
+    } catch {}
+    try {
+      serialHandle = serialModule.setupSerial({ emit: sendOrBuffer, path, baudRate: baudRate || 9600 });
+      sendOrBuffer({ kind: 'init', text: `reconnect on ${path}` });
+      return { ok: true };
+    } catch (err) {
+      sendOrBuffer({ kind: 'error', message: `reconnect failed: ${err.message}`, path });
+      return { ok: false, error: err.message };
+    }
+  });
+
   return win;
 }
 

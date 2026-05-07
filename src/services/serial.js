@@ -65,6 +65,16 @@ export async function sendSerial(cmd) {
   }
 }
 
+export async function listSerialPorts() {
+  if (!window.mobilax?.listSerialPorts) return { ok: false, error: 'no preload' };
+  return window.mobilax.listSerialPorts();
+}
+
+export async function reconnectSerial(cfg) {
+  if (!window.mobilax?.reconnectSerial) return { ok: false, error: 'no preload' };
+  return window.mobilax.reconnectSerial(cfg);
+}
+
 export function stopSerialBridge() {
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
 }

@@ -13,4 +13,6 @@ contextBridge.exposeInMainWorld('mobilax', {
   },
   flushSerial: () => ipcRenderer.invoke('serial:flush'),
   sendSerial: (cmd) => ipcRenderer.invoke('serial:send', cmd),
+  listSerialPorts: () => ipcRenderer.invoke('serial:list'),
+  reconnectSerial: (cfg) => ipcRenderer.invoke('serial:reconnect', cfg),
 });

@@ -120,4 +120,8 @@ function parseWeight(line) {
 
 function tryJson(s) { try { return JSON.parse(s); } catch { return null; } }
 
-module.exports = { setupSerial };
+async function listPorts() {
+  return SerialPort.list();
+}
+
+module.exports = { setupSerial, listPorts };
