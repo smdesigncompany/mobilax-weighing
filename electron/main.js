@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { setupAutoUpdater } = require('./updater');
+const { setupSerial } = require('./serial');
 
 // The Electron app no longer spawns a local server.
 // It is a thin wrapper around the React UI which connects to the
@@ -30,6 +31,10 @@ function createWindow() {
   }
 
   setupAutoUpdater(app, win);
+
+  // Forward serial events to the renderer (raw lines + parsed weight).
+  setupSerial(win, { path: process.env.COM_PATH || 'COM2' });
+
   return win;
 }
 

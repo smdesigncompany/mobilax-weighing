@@ -3,6 +3,7 @@ import { ConnectionStatus } from '../molecules/ConnectionStatus';
 import { StatusIndicator } from '../molecules/StatusIndicator';
 import { SettingsButton } from '../molecules/SettingsButton';
 import { UpdateBadge } from '../molecules/UpdateBadge';
+import { SerialStatus } from '../molecules/SerialStatus';
 
 function HeaderImpl() {
   return (
@@ -16,6 +17,7 @@ function HeaderImpl() {
       </div>
       <div className="flex items-center gap-4">
         <UpdateBadge />
+        <SerialStatus />
         <StatusIndicator />
         <ConnectionStatus />
         <SettingsButton />

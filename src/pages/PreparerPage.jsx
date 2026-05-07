@@ -3,13 +3,18 @@ import { PreparerLayout } from '../templates/PreparerLayout';
 import { WeightPanel } from '../organisms/WeightPanel';
 import { DimensionsPanel } from '../organisms/DimensionsPanel';
 import { QRPanel } from '../organisms/QRPanel';
-import { SimulatorBar } from '../organisms/SimulatorBar';
+import { LiveWeightPanel } from '../organisms/LiveWeightPanel';
+import { NewPackageBar } from '../organisms/NewPackageBar';
 import { CodeDisplay } from '../molecules/CodeDisplay';
 import { Card } from '../atoms/Card';
 
 function PreparerPageImpl() {
   return (
     <PreparerLayout>
+      <div className="flex flex-col gap-4 mb-6">
+        <NewPackageBar />
+        <LiveWeightPanel />
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="flex flex-col gap-6">
           <Card className="p-6">
@@ -19,9 +24,6 @@ function PreparerPageImpl() {
           <DimensionsPanel />
         </div>
         <QRPanel />
-      </div>
-      <div className="mt-8">
-        <SimulatorBar />
       </div>
     </PreparerLayout>
   );
