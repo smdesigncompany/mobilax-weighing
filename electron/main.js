@@ -1,7 +1,22 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { setupAutoUpdater } = require('./updater');
-const { setupSerial } = require('./serial');
+
+// Buffered serial events emitted before the renderer is ready.
+// Flushed when the renderer calls window.mobilax.flushSerial().
+const serialBuffer = [];
+function bufferEvent(evt) { serialBuffer.push(evt); if (serialBuffer.length > 200) serialBuffer.shift(); }
+
+ipcMain.handle('serial:flush', () => serialBuffer.splice(0));
+
+let serialModule;
+try {
+  serialModule = require('./serial');
+  bufferEvent({ kind: 'init', text: 'serial module loaded' });
+} catch (err) {
+  bufferEvent({ kind: 'error', message: `failed to load serial module: ${err.message}`, path: 'COM?' });
+  serialModule = null;
+}
 
 // The Electron app no longer spawns a local server.
 // It is a thin wrapper around the React UI which connects to the
@@ -32,8 +47,25 @@ function createWindow() {
 
   setupAutoUpdater(app, win);
 
-  // Forward serial events to the renderer (raw lines + parsed weight).
-  setupSerial(win, { path: process.env.COM_PATH || 'COM2' });
+  // Forward serial events to the renderer + keep a buffer for late subscribers.
+  const sendOrBuffer = (evt) => {
+    bufferEvent(evt);
+    if (!win.isDestroyed()) win.webContents.send('serial:event', evt);
+  };
+
+  if (serialModule?.setupSerial) {
+    try {
+      serialModule.setupSerial({
+        emit: sendOrBuffer,
+        path: process.env.COM_PATH || 'COM2',
+      });
+      sendOrBuffer({ kind: 'init', text: 'setupSerial invoked' });
+    } catch (err) {
+      sendOrBuffer({ kind: 'error', message: `setupSerial threw: ${err.message}`, path: 'COM?' });
+    }
+  } else {
+    sendOrBuffer({ kind: 'error', message: 'serial module unavailable (native bindings missing?)', path: 'COM?' });
+  }
 
   return win;
 }

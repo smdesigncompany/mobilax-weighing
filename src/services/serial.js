@@ -5,9 +5,27 @@ import { useMeasureStore } from '../store/measureStore';
 let unsubscribe = null;
 
 export function startSerialBridge() {
-  if (typeof window === 'undefined' || !window.mobilax?.onSerialEvent) return;
+  if (typeof window === 'undefined' || !window.mobilax?.onSerialEvent) {
+    useMeasureStore.getState().pushEvent({
+      kind: 'serial.error',
+      text: 'IPC bridge mobilax indisponible — préload non chargé',
+    });
+    return;
+  }
   if (unsubscribe) return;
-  unsubscribe = window.mobilax.onSerialEvent((evt) => {
+
+  const dispatch = makeDispatcher();
+  // Drain anything emitted before this listener was wired.
+  if (window.mobilax.flushSerial) {
+    window.mobilax.flushSerial().then((buffered) => {
+      (buffered || []).forEach(dispatch);
+    }).catch(() => {});
+  }
+  unsubscribe = window.mobilax.onSerialEvent(dispatch);
+}
+
+function makeDispatcher() {
+  return (evt) => {
     const { setSerialStatus, setLiveWeight, pushEvent } = useMeasureStore.getState();
     switch (evt.kind) {
       case 'open':
@@ -28,8 +46,11 @@ export function startSerialBridge() {
       case 'raw':
         pushEvent({ kind: 'serial.raw', text: evt.line, parsed: evt.weight });
         break;
+      case 'init':
+        pushEvent({ kind: 'serial.open', text: evt.text || 'init' });
+        break;
     }
-  });
+  };
 }
 
 export function stopSerialBridge() {
