@@ -53,9 +53,10 @@ function createWindow() {
     if (!win.isDestroyed()) win.webContents.send('serial:event', evt);
   };
 
+  let serialHandle = null;
   if (serialModule?.setupSerial) {
     try {
-      serialModule.setupSerial({
+      serialHandle = serialModule.setupSerial({
         emit: sendOrBuffer,
         path: process.env.COM_PATH || 'COM2',
       });
@@ -66,6 +67,13 @@ function createWindow() {
   } else {
     sendOrBuffer({ kind: 'error', message: 'serial module unavailable (native bindings missing?)', path: 'COM?' });
   }
+
+  // Renderer can ask the main process to send a custom command on the serial port.
+  ipcMain.handle('serial:send', (_e, cmd) => {
+    if (!serialHandle?.write) return { ok: false, error: 'no serial handle' };
+    serialHandle.write(cmd);
+    return { ok: true };
+  });
 
   return win;
 }

@@ -6,6 +6,7 @@ import { QRPanel } from '../organisms/QRPanel';
 import { LiveWeightPanel } from '../organisms/LiveWeightPanel';
 import { NewPackageBar } from '../organisms/NewPackageBar';
 import { ActivityLog } from '../organisms/ActivityLog';
+import { SerialCommandBar } from '../organisms/SerialCommandBar';
 import { CodeDisplay } from '../molecules/CodeDisplay';
 import { Card } from '../atoms/Card';
 
@@ -26,6 +27,7 @@ function PreparerPageImpl() {
         </div>
         <div className="flex flex-col gap-6">
           <QRPanel />
+          <SerialCommandBar />
           <ActivityLog />
         </div>
       </div>

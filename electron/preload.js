@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld('mobilax', {
     return () => ipcRenderer.removeListener('serial:event', handler);
   },
   flushSerial: () => ipcRenderer.invoke('serial:flush'),
+  sendSerial: (cmd) => ipcRenderer.invoke('serial:send', cmd),
 });

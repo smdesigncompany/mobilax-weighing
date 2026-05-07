@@ -11,6 +11,7 @@ const KIND_STYLES = {
   'serial.close':   { tone: 'text-slate-600',    pill: 'bg-slate-100 text-slate-600',     label: 'Balance' },
   'serial.error':   { tone: 'text-rose-700',     pill: 'bg-rose-100 text-rose-700',       label: 'Erreur' },
   'serial.raw':     { tone: 'text-slate-700',    pill: 'bg-slate-100 text-slate-600',     label: 'COM' },
+  'serial.sent':    { tone: 'text-indigo-700',   pill: 'bg-indigo-100 text-indigo-700',   label: 'TX' },
   'response.ok':    { tone: 'text-emerald-700',  pill: 'bg-emerald-100 text-emerald-700', label: 'Réponse' },
   'response.error': { tone: 'text-rose-700',     pill: 'bg-rose-100 text-rose-700',       label: 'Erreur' },
 };

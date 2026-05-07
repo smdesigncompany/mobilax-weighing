@@ -9,6 +9,10 @@ const FRAME_DELIMITER = /\r?\n/;
 const STABLE_WINDOW_MS = 600;
 const STABLE_TOLERANCE = 0.01;
 
+// Common wake-up commands many request/response balances respond to.
+// Sent in order at intervals after the port opens, until raw data shows up.
+const WAKE_COMMANDS = ['P\r\n', 'S\r\n', '?\r\n', 'W\r\n', 'p\r\n', 's\r\n'];
+
 function setupSerial({ emit, path = 'COM2', baudRate = 9600 }) {
   if (typeof emit !== 'function') throw new Error('setupSerial requires an emit function');
 
@@ -17,8 +21,28 @@ function setupSerial({ emit, path = 'COM2', baudRate = 9600 }) {
   let lastWeight = null;
   let lastChangeAt = 0;
   let stableSent = null;
+  let receivedAny = false;
+  let pollHandle = null;
 
   emit({ kind: 'init', text: `opening ${path} @ ${baudRate} 8N1...` });
+
+  const writeCommand = (cmd) => {
+    if (!port || !port.isOpen) return;
+    port.write(cmd, (err) => {
+      if (err) emit({ kind: 'error', message: `write failed: ${err.message}` });
+      else emit({ kind: 'sent', text: JSON.stringify(cmd) });
+    });
+  };
+
+  const startPolling = () => {
+    let i = 0;
+    pollHandle = setInterval(() => {
+      if (receivedAny) { clearInterval(pollHandle); pollHandle = null; return; }
+      writeCommand(WAKE_COMMANDS[i % WAKE_COMMANDS.length]);
+      i++;
+      if (i > WAKE_COMMANDS.length * 3) { clearInterval(pollHandle); pollHandle = null; }
+    }, 1000);
+  };
 
   const open = () => {
     try {
@@ -29,6 +53,8 @@ function setupSerial({ emit, path = 'COM2', baudRate = 9600 }) {
           return;
         }
         emit({ kind: 'open', path, baudRate });
+        // Try wake-up commands in case the balance only emits on request.
+        setTimeout(startPolling, 500);
       });
 
       port.on('data', (chunk) => {
@@ -54,6 +80,7 @@ function setupSerial({ emit, path = 'COM2', baudRate = 9600 }) {
   const scheduleReopen = () => setTimeout(open, 2000);
 
   const handleLine = (raw) => {
+    receivedAny = true;
     const weight = parseWeight(raw);
     emit({ kind: 'raw', line: raw, weight });
     if (weight == null) return;
@@ -74,7 +101,10 @@ function setupSerial({ emit, path = 'COM2', baudRate = 9600 }) {
   };
 
   open();
-  return { close: () => port?.close() };
+  return {
+    close: () => port?.close(),
+    write: (cmd) => writeCommand(cmd),
+  };
 }
 
 function parseWeight(line) {

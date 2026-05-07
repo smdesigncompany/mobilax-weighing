@@ -49,8 +49,20 @@ function makeDispatcher() {
       case 'init':
         pushEvent({ kind: 'serial.open', text: evt.text || 'init' });
         break;
+      case 'sent':
+        pushEvent({ kind: 'serial.sent', text: `→ envoyé : ${evt.text}` });
+        break;
     }
   };
+}
+
+export async function sendSerial(cmd) {
+  if (!window.mobilax?.sendSerial) return { ok: false, error: 'no preload' };
+  try {
+    return await window.mobilax.sendSerial(cmd);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 }
 
 export function stopSerialBridge() {
