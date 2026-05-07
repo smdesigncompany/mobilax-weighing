@@ -4,13 +4,15 @@ import { Label } from '../atoms/Label';
 import { useEventLog } from '../store/measureStore';
 
 const KIND_STYLES = {
-  'user.new':       { tone: 'text-brand-700',    pill: 'bg-brand-100 text-brand-700',    label: 'Action' },
-  'user.simulate':  { tone: 'text-amber-700',    pill: 'bg-amber-100 text-amber-800',    label: 'Test' },
+  'user.new':       { tone: 'text-brand-700',    pill: 'bg-brand-100 text-brand-700',     label: 'Action' },
+  'user.simulate':  { tone: 'text-amber-700',    pill: 'bg-amber-100 text-amber-800',     label: 'Test' },
   'measure.locked': { tone: 'text-emerald-700',  pill: 'bg-emerald-100 text-emerald-700', label: 'Mesure' },
   'serial.open':    { tone: 'text-emerald-700',  pill: 'bg-emerald-100 text-emerald-700', label: 'Balance' },
-  'serial.close':   { tone: 'text-slate-600',    pill: 'bg-slate-100 text-slate-600',    label: 'Balance' },
-  'serial.error':   { tone: 'text-rose-700',     pill: 'bg-rose-100 text-rose-700',      label: 'Erreur' },
-  'serial.raw':     { tone: 'text-slate-700',    pill: 'bg-slate-100 text-slate-600',    label: 'COM' },
+  'serial.close':   { tone: 'text-slate-600',    pill: 'bg-slate-100 text-slate-600',     label: 'Balance' },
+  'serial.error':   { tone: 'text-rose-700',     pill: 'bg-rose-100 text-rose-700',       label: 'Erreur' },
+  'serial.raw':     { tone: 'text-slate-700',    pill: 'bg-slate-100 text-slate-600',     label: 'COM' },
+  'response.ok':    { tone: 'text-emerald-700',  pill: 'bg-emerald-100 text-emerald-700', label: 'Réponse' },
+  'response.error': { tone: 'text-rose-700',     pill: 'bg-rose-100 text-rose-700',       label: 'Erreur' },
 };
 
 function ActivityLogImpl() {

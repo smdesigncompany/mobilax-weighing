@@ -61,8 +61,9 @@ export const useMeasureStore = create((set, get) => ({
     const next = { liveWeight: weight, liveStable: !!stable };
     // When a stable weight lands while a pending ID is armed, lock it as the current measure.
     if (stable && s.pendingId && weight != null) {
+      const id = s.pendingId;
       next.measure = {
-        barcode: s.pendingId,
+        barcode: id,
         codeSource: 'generated',
         datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
         weight,
@@ -72,6 +73,10 @@ export const useMeasureStore = create((set, get) => ({
       next.receivedAt = Date.now();
       next.measureCount = s.measureCount + 1;
       next.pendingId = null;
+      next.eventLog = appendEvent(s.eventLog, {
+        kind: 'measure.locked',
+        text: `Auto-verrouillage — ${id} | ${weight} kg (poids stable)`,
+      });
     }
     return next;
   }),
@@ -89,10 +94,13 @@ export const useMeasureStore = create((set, get) => ({
     };
   }),
 
-  setMeasure: (measure) => set((s) => {
+  setMeasure: (measure, source = 'manual') => set((s) => {
     const m = s.pendingId
       ? { ...measure, barcode: s.pendingId, codeSource: 'generated' }
       : measure;
+    const dimsTxt = (m.len || m.width || m.height)
+      ? ` | L${m.len ?? '?'}×l${m.width ?? '?'}×h${m.height ?? '?'} mm`
+      : '';
     return {
       measure: m,
       status: 'ready',
@@ -102,7 +110,7 @@ export const useMeasureStore = create((set, get) => ({
       pendingId: null,
       eventLog: appendEvent(s.eventLog, {
         kind: 'measure.locked',
-        text: `Mesure verrouillée — ${m.barcode} | ${m.weight ?? '—'} kg`,
+        text: `Mesure verrouillée (${source}) — ${m.barcode} | ${m.weight ?? '—'} kg${dimsTxt}`,
       }),
     };
   }),

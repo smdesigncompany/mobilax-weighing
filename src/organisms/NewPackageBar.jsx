@@ -14,18 +14,29 @@ function NewPackageBarImpl() {
 
   const onNew = () => useMeasureStore.getState().newPackage();
 
-  const onSimulate = () => {
+  const onSimulate = async () => {
     const store = useMeasureStore.getState();
     store.pushEvent({ kind: 'user.simulate', text: 'Bouton Simuler cliqué' });
     if (hasApiConfigured()) {
-      apiFetch('/api/dev/simulate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      try {
+        const res = await apiFetch('/api/dev/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const body = await res.json().catch(() => null);
+        store.pushEvent({
+          kind: res.ok ? 'response.ok' : 'response.error',
+          text: `Réponse API /dev/simulate (${res.status}) — ${body ? JSON.stringify(body).slice(0, 160) : 'pas de corps'}`,
+        });
+      } catch (err) {
+        store.pushEvent({ kind: 'response.error', text: `Erreur réseau simulate: ${err.message}` });
+      }
       return;
     }
-    store.setMeasure(buildLocalFakeMeasure());
+    const fake = buildLocalFakeMeasure();
+    store.pushEvent({ kind: 'response.ok', text: `Mesure factice générée localement — ${fake.barcode}` });
+    store.setMeasure(fake, 'simulate');
   };
 
   return (
