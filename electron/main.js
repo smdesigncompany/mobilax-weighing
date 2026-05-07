@@ -86,18 +86,32 @@ function createWindow() {
     }
   });
 
-  // Reconnect on a different COM port at runtime.
-  ipcMain.handle('serial:reconnect', async (_e, { path, baudRate }) => {
+  // Reconnect on a different COM port at runtime. The previous handle's
+  // close() now returns a promise that resolves once the OS has actually
+  // released the port — without awaiting it the new open hits "Access denied".
+  ipcMain.handle('serial:reconnect', async (_e, opts) => {
     if (!serialModule?.setupSerial) return { ok: false, error: 'serial module unavailable' };
+    const old = serialHandle;
+    serialHandle = null;
+    if (old?.close) {
+      try { await old.close(); } catch {}
+      await new Promise((r) => setTimeout(r, 400)); // Windows kernel grace
+    }
     try {
-      if (serialHandle?.close) await new Promise((r) => { try { serialHandle.close(); } finally { setTimeout(r, 200); } });
-    } catch {}
-    try {
-      serialHandle = serialModule.setupSerial({ emit: sendOrBuffer, path, baudRate: baudRate || 9600 });
-      sendOrBuffer({ kind: 'init', text: `reconnect on ${path}` });
+      serialHandle = serialModule.setupSerial({
+        emit: sendOrBuffer,
+        path: opts.path,
+        baudRate: opts.baudRate || 9600,
+        dataBits: opts.dataBits || 8,
+        parity: opts.parity || 'none',
+        stopBits: opts.stopBits || 1,
+        dtr: opts.dtr !== false,
+        rts: opts.rts !== false,
+      });
+      sendOrBuffer({ kind: 'init', text: `reconnect on ${opts.path}` });
       return { ok: true };
     } catch (err) {
-      sendOrBuffer({ kind: 'error', message: `reconnect failed: ${err.message}`, path });
+      sendOrBuffer({ kind: 'error', message: `reconnect failed: ${err.message}`, path: opts.path });
       return { ok: false, error: err.message };
     }
   });

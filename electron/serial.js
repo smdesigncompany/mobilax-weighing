@@ -32,6 +32,8 @@ function setupSerial({
   let stableSent = null;
   let receivedAny = false;
   let pollHandle = null;
+  let stopped = false;
+  let reopenHandle = null;
 
   emit({ kind: 'init', text: `opening ${path} @ ${baudRate} ${dataBits}${parity[0].toUpperCase()}${stopBits} (dtr=${dtr}, rts=${rts})` });
 
@@ -92,7 +94,11 @@ function setupSerial({
     }
   };
 
-  const scheduleReopen = () => setTimeout(open, 2000);
+  const scheduleReopen = () => {
+    if (stopped) return;
+    if (reopenHandle) clearTimeout(reopenHandle);
+    reopenHandle = setTimeout(() => { reopenHandle = null; if (!stopped) open(); }, 2000);
+  };
 
   const handleLine = (raw) => {
     receivedAny = true;
@@ -117,7 +123,21 @@ function setupSerial({
 
   open();
   return {
-    close: () => port?.close(),
+    close: () => new Promise((resolve) => {
+      stopped = true;
+      if (reopenHandle) { clearTimeout(reopenHandle); reopenHandle = null; }
+      if (pollHandle) { clearInterval(pollHandle); pollHandle = null; }
+      if (!port || !port.isOpen) return resolve();
+      try {
+        port.close((err) => {
+          if (err) emit({ kind: 'error', message: `close: ${err.message}` });
+          resolve();
+        });
+      } catch (e) {
+        emit({ kind: 'error', message: `close threw: ${e.message}` });
+        resolve();
+      }
+    }),
     write: (cmd) => writeCommand(cmd),
   };
 }
