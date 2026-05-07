@@ -46,7 +46,13 @@ export const useMeasureStore = create((set, get) => ({
   serialStatus: 'unknown', // 'open' | 'error' | 'closed' | 'unknown'
   serialError: null,
   serialPath: null,
+  serialLog: [], // last raw lines for debug
   setSerialStatus: ({ status, error, path }) => set({ serialStatus: status, serialError: error ?? null, serialPath: path ?? null }),
+  pushSerialLog: (entry) => set((s) => {
+    const next = [...s.serialLog, { ...entry, t: Date.now() }];
+    // keep last 50
+    return { serialLog: next.length > 50 ? next.slice(-50) : next };
+  }),
   setLiveWeight: ({ weight, stable }) => set((s) => {
     const next = { liveWeight: weight, liveStable: !!stable };
     // When a stable weight lands while a pending ID is armed, lock it as the current measure.
@@ -100,6 +106,7 @@ const selCodeSource = (s) => s.measure?.codeSource ?? null;
 const selLiveWeight = (s) => s.liveWeight;
 const selLiveStable = (s) => s.liveStable;
 const selSerialStatus = (s) => ({ status: s.serialStatus, error: s.serialError, path: s.serialPath });
+const selSerialLog = (s) => s.serialLog;
 const selPendingId = (s) => s.pendingId;
 const selDailyCounter = (s) => s.dailyCounter;
 const selWeight = (s) => s.measure?.weight ?? null;
@@ -114,6 +121,7 @@ export const useCodeSource = () => useMeasureStore(selCodeSource);
 export const useLiveWeight = () => useMeasureStore(selLiveWeight);
 export const useLiveStable = () => useMeasureStore(selLiveStable);
 export const useSerialStatus = () => useMeasureStore(selSerialStatus, shallow);
+export const useSerialLog = () => useMeasureStore(selSerialLog);
 export const usePendingId = () => useMeasureStore(selPendingId);
 export const useDailyCounter = () => useMeasureStore(selDailyCounter);
 export const useWeight = () => useMeasureStore(selWeight);
