@@ -8,25 +8,25 @@ export function startSerialBridge() {
   if (typeof window === 'undefined' || !window.mobilax?.onSerialEvent) return;
   if (unsubscribe) return;
   unsubscribe = window.mobilax.onSerialEvent((evt) => {
-    const { setSerialStatus, setLiveWeight, pushSerialLog } = useMeasureStore.getState();
+    const { setSerialStatus, setLiveWeight, pushEvent } = useMeasureStore.getState();
     switch (evt.kind) {
       case 'open':
         setSerialStatus({ status: 'open', path: evt.path });
-        pushSerialLog({ kind: 'open', text: `port opened ${evt.path} @ ${evt.baudRate}` });
+        pushEvent({ kind: 'serial.open', text: `Port ${evt.path} ouvert @ ${evt.baudRate} baud` });
         break;
       case 'close':
         setSerialStatus({ status: 'closed' });
-        pushSerialLog({ kind: 'close', text: 'port closed' });
+        pushEvent({ kind: 'serial.close', text: 'Port fermé' });
         break;
       case 'error':
         setSerialStatus({ status: 'error', error: evt.message, path: evt.path });
-        pushSerialLog({ kind: 'error', text: evt.message });
+        pushEvent({ kind: 'serial.error', text: evt.message });
         break;
       case 'weight':
         setLiveWeight({ weight: evt.weight, stable: evt.stable });
         break;
       case 'raw':
-        pushSerialLog({ kind: 'raw', text: evt.line, parsed: evt.weight });
+        pushEvent({ kind: 'serial.raw', text: evt.line, parsed: evt.weight });
         break;
     }
   });

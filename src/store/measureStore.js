@@ -24,6 +24,11 @@ function todayKey() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+function appendEvent(log, entry) {
+  const next = [...log, { ...entry, t: Date.now() }];
+  return next.length > 100 ? next.slice(-100) : next;
+}
+
 function buildPendingId(n) {
   const d = new Date();
   const ymd = `${String(d.getFullYear()).slice(2)}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
@@ -46,12 +51,11 @@ export const useMeasureStore = create((set, get) => ({
   serialStatus: 'unknown', // 'open' | 'error' | 'closed' | 'unknown'
   serialError: null,
   serialPath: null,
-  serialLog: [], // last raw lines for debug
+  eventLog: [], // chronological feed of activity (user actions + serial + measure lifecycle)
   setSerialStatus: ({ status, error, path }) => set({ serialStatus: status, serialError: error ?? null, serialPath: path ?? null }),
-  pushSerialLog: (entry) => set((s) => {
-    const next = [...s.serialLog, { ...entry, t: Date.now() }];
-    // keep last 50
-    return { serialLog: next.length > 50 ? next.slice(-50) : next };
+  pushEvent: (entry) => set((s) => {
+    const next = [...s.eventLog, { ...entry, t: Date.now() }];
+    return { eventLog: next.length > 100 ? next.slice(-100) : next };
   }),
   setLiveWeight: ({ weight, stable }) => set((s) => {
     const next = { liveWeight: weight, liveStable: !!stable };
@@ -76,7 +80,13 @@ export const useMeasureStore = create((set, get) => ({
   newPackage: () => set((s) => {
     const next = s.dailyCounter + 1;
     saveCounter(next);
-    return { dailyCounter: next, pendingId: buildPendingId(next), status: 'measuring' };
+    const id = buildPendingId(next);
+    return {
+      dailyCounter: next,
+      pendingId: id,
+      status: 'measuring',
+      eventLog: appendEvent(s.eventLog, { kind: 'user.new', text: `Nouveau colis armé — ${id}` }),
+    };
   }),
 
   setMeasure: (measure) => set((s) => {
@@ -90,6 +100,10 @@ export const useMeasureStore = create((set, get) => ({
       receivedAt: Date.now(),
       measureCount: s.measureCount + 1,
       pendingId: null,
+      eventLog: appendEvent(s.eventLog, {
+        kind: 'measure.locked',
+        text: `Mesure verrouillée — ${m.barcode} | ${m.weight ?? '—'} kg`,
+      }),
     };
   }),
 
@@ -106,7 +120,7 @@ const selCodeSource = (s) => s.measure?.codeSource ?? null;
 const selLiveWeight = (s) => s.liveWeight;
 const selLiveStable = (s) => s.liveStable;
 const selSerialStatus = (s) => ({ status: s.serialStatus, error: s.serialError, path: s.serialPath });
-const selSerialLog = (s) => s.serialLog;
+const selEventLog = (s) => s.eventLog;
 const selPendingId = (s) => s.pendingId;
 const selDailyCounter = (s) => s.dailyCounter;
 const selWeight = (s) => s.measure?.weight ?? null;
@@ -121,7 +135,7 @@ export const useCodeSource = () => useMeasureStore(selCodeSource);
 export const useLiveWeight = () => useMeasureStore(selLiveWeight);
 export const useLiveStable = () => useMeasureStore(selLiveStable);
 export const useSerialStatus = () => useMeasureStore(selSerialStatus, shallow);
-export const useSerialLog = () => useMeasureStore(selSerialLog);
+export const useEventLog = () => useMeasureStore(selEventLog);
 export const usePendingId = () => useMeasureStore(selPendingId);
 export const useDailyCounter = () => useMeasureStore(selDailyCounter);
 export const useWeight = () => useMeasureStore(selWeight);

@@ -15,6 +15,8 @@ function NewPackageBarImpl() {
   const onNew = () => useMeasureStore.getState().newPackage();
 
   const onSimulate = () => {
+    const store = useMeasureStore.getState();
+    store.pushEvent({ kind: 'user.simulate', text: 'Bouton Simuler cliqué' });
     if (hasApiConfigured()) {
       apiFetch('/api/dev/simulate', {
         method: 'POST',
@@ -23,7 +25,7 @@ function NewPackageBarImpl() {
       });
       return;
     }
-    useMeasureStore.getState().setMeasure(buildLocalFakeMeasure());
+    store.setMeasure(buildLocalFakeMeasure());
   };
 
   return (

@@ -5,7 +5,7 @@ import { DimensionsPanel } from '../organisms/DimensionsPanel';
 import { QRPanel } from '../organisms/QRPanel';
 import { LiveWeightPanel } from '../organisms/LiveWeightPanel';
 import { NewPackageBar } from '../organisms/NewPackageBar';
-import { DebugPanel } from '../organisms/DebugPanel';
+import { ActivityLog } from '../organisms/ActivityLog';
 import { CodeDisplay } from '../molecules/CodeDisplay';
 import { Card } from '../atoms/Card';
 
@@ -24,9 +24,11 @@ function PreparerPageImpl() {
           <WeightPanel />
           <DimensionsPanel />
         </div>
-        <QRPanel />
+        <div className="flex flex-col gap-6">
+          <QRPanel />
+          <ActivityLog />
+        </div>
       </div>
-      <DebugPanel />
     </PreparerLayout>
   );
 }
