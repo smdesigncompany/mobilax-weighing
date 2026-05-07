@@ -13,7 +13,16 @@ const STABLE_TOLERANCE = 0.01;
 // Sent in order at intervals after the port opens, until raw data shows up.
 const WAKE_COMMANDS = ['P\r\n', 'S\r\n', '?\r\n', 'W\r\n', 'p\r\n', 's\r\n'];
 
-function setupSerial({ emit, path = 'COM2', baudRate = 9600 }) {
+function setupSerial({
+  emit,
+  path = 'COM2',
+  baudRate = 9600,
+  dataBits = 8,
+  parity = 'none',
+  stopBits = 1,
+  dtr = true,
+  rts = true,
+}) {
   if (typeof emit !== 'function') throw new Error('setupSerial requires an emit function');
 
   let port;
@@ -24,7 +33,7 @@ function setupSerial({ emit, path = 'COM2', baudRate = 9600 }) {
   let receivedAny = false;
   let pollHandle = null;
 
-  emit({ kind: 'init', text: `opening ${path} @ ${baudRate} 8N1...` });
+  emit({ kind: 'init', text: `opening ${path} @ ${baudRate} ${dataBits}${parity[0].toUpperCase()}${stopBits} (dtr=${dtr}, rts=${rts})` });
 
   const writeCommand = (cmd) => {
     if (!port || !port.isOpen) return;
@@ -46,14 +55,20 @@ function setupSerial({ emit, path = 'COM2', baudRate = 9600 }) {
 
   const open = () => {
     try {
-      port = new SerialPort({ path, baudRate, dataBits: 8, stopBits: 1, parity: 'none' }, (err) => {
+      port = new SerialPort({ path, baudRate, dataBits, stopBits, parity }, (err) => {
         if (err) {
           emit({ kind: 'error', message: err.message, path });
           scheduleReopen();
           return;
         }
+        // Many serial devices only emit when the host raises DTR/RTS.
+        // We set them right after open and log the outcome so a missing
+        // assertion is visible in the activity log.
+        port.set({ dtr, rts }, (setErr) => {
+          if (setErr) emit({ kind: 'error', message: `DTR/RTS set failed: ${setErr.message}` });
+          else emit({ kind: 'init', text: `DTR=${dtr} RTS=${rts} asserted` });
+        });
         emit({ kind: 'open', path, baudRate });
-        // Try wake-up commands in case the balance only emits on request.
         setTimeout(startPolling, 500);
       });
 
