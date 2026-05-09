@@ -96,13 +96,30 @@ function setupBridge({ emit, app, mode = 14, serial }) {
     emit({ kind: 'error', message: 'no SDK x64 folder found — native DLLs will not load and the bridge will exit' });
   }
 
-  if (!fs.existsSync(paths.configDir)) {
-    emit({ kind: 'error', message: `HikBinoConfig folder missing at ${paths.configDir}` });
+  // The SDK ships with a complete HikBinoConfig (incl. the 34 MB AI model
+  // pkg_base_SF*.bin) inside its x64 folder. Prefer that one over the
+  // smaller bundle we ship in resources/HikBinoConfig — Start() fails with
+  // 0x8001100c when the AI model is missing.
+  let configDir = paths.configDir;
+  if (sdkDir) {
+    const sdkConfig = path.join(sdkDir, 'HikBinoConfig');
+    const hasModel = fs.existsSync(sdkConfig) &&
+      fs.readdirSync(sdkConfig).some((f) => f.startsWith('pkg_base_SF') && f.endsWith('.bin'));
+    if (hasModel) {
+      configDir = sdkConfig;
+      emit({ kind: 'init', text: `using full HikBinoConfig from SDK: ${configDir}` });
+    } else {
+      emit({ kind: 'init', text: `falling back to bundled HikBinoConfig (no AI model in SDK config)` });
+    }
+  }
+
+  if (!fs.existsSync(configDir)) {
+    emit({ kind: 'error', message: `HikBinoConfig folder missing at ${configDir}` });
   }
 
   const args = [
     '--mode', String(mode),
-    '--config', paths.configDir,
+    '--config', configDir,
   ];
   if (serial) args.push('--serial', serial);
 
