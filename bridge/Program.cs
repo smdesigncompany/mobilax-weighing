@@ -32,7 +32,17 @@ namespace MobilaxBridge
     {
         private static MvVolmeasureLib _sdk;
         private static MvVolmeasureLib.ResultCallback _callback;
-        private static int _algorithmType = (int)CameraType.CAMERA_TYPE_BINOSTEREO_RGBD; // mode 14 by default
+        // Default mode: 10 = CAMERA_TYPE_BINOSTEREO_VOLUME_DIRECT (camera computes
+        // volume on-board, no PC-side calibration files needed). If the camera
+        // refuses this mode we fall through the candidate list below.
+        private static int _algorithmType = (int)CameraType.CAMERA_TYPE_BINOSTEREO_VOLUME_DIRECT;
+        private static readonly int[] FALLBACK_MODES = new int[] {
+            (int)CameraType.CAMERA_TYPE_BINOSTEREO_VOLUME_DIRECT,   // 10
+            (int)CameraType.CAMERA_TYPE_BINOSTEREO_VOLUME_160W,     // 8
+            (int)CameraType.CAMERA_TYPE_BINOSTEREO_VOLUME,          // 7
+            (int)CameraType.CAMERA_TYPE_BINOSTEREO_RGBD,            // 14
+            (int)CameraType.CAMERA_TYPE_BINOSTEREO_MONO8_VOLUME,    // 11
+        };
         private static string _configFolder = null;
         private static string _selectedSerial = null;
         private static bool _running = false;
@@ -172,16 +182,29 @@ namespace MobilaxBridge
                         return false;
                     }
 
-                    ret = _sdk.SetAlgorithmType((uint)_algorithmType);
-                    if (ret != (int)ErrorCode.MV_VOLM_OK)
+                    // Try the user-requested mode first, then fall through the
+                    // built-in fallback list. Camera variants accept different
+                    // modes; we pick the first one the firmware accepts.
+                    int chosenMode = -1;
+                    foreach (int candidate in EnumerateModeCandidates(_algorithmType))
+                    {
+                        var rt = _sdk.SetAlgorithmType((uint)candidate);
+                        EmitEvent("info", new Dictionary<string, object> {
+                            { "msg", "SetAlgorithmType try" },
+                            { "mode", candidate },
+                            { "ret", rt },
+                        });
+                        if (rt == (int)ErrorCode.MV_VOLM_OK) { chosenMode = candidate; break; }
+                    }
+                    if (chosenMode < 0)
                     {
                         EmitEvent("error", new Dictionary<string, object> {
-                            { "msg", "SetAlgorithmType failed" },
-                            { "ret", ret },
-                            { "mode", _algorithmType },
+                            { "msg", "no algorithm mode accepted by camera" },
+                            { "tried", string.Join(",", EnumerateModeCandidates(_algorithmType)) },
                         });
                         return false;
                     }
+                    _algorithmType = chosenMode;
 
                     _callback = new MvVolmeasureLib.ResultCallback(OnResult);
                     ret = _sdk.RegisterResultCallBack(_callback, IntPtr.Zero);
@@ -238,6 +261,17 @@ namespace MobilaxBridge
                 try { _sdk?.DeInit(); } catch { }
                 _sdk = null;
                 _running = false;
+            }
+        }
+
+        // Walk the user's preferred mode first, then everything in FALLBACK_MODES
+        // (skipping duplicates). Yields ints in order, no dedup-allocation needed.
+        private static IEnumerable<int> EnumerateModeCandidates(int preferred)
+        {
+            yield return preferred;
+            foreach (int m in FALLBACK_MODES)
+            {
+                if (m != preferred) yield return m;
             }
         }
 

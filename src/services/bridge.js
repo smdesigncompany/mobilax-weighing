@@ -69,12 +69,23 @@ function makeDispatcher() {
         case 'stopped':
           pushEvent({ kind: 'bridge.init', text: 'stopped' });
           break;
-        case 'error':
-          pushEvent({ kind: 'bridge.error', text: p.msg || 'error' });
+        case 'error': {
+          const extras = [
+            p.ret != null ? `ret=0x${(p.ret >>> 0).toString(16)}` : null,
+            p.mode != null ? `mode=${p.mode}` : null,
+            p.tried ? `tried=${p.tried}` : null,
+          ].filter(Boolean).join(' ');
+          pushEvent({ kind: 'bridge.error', text: `${p.msg || 'error'} ${extras}`.trim() });
           break;
-        case 'info':
-          pushEvent({ kind: 'bridge.init', text: p.msg || 'info' });
+        }
+        case 'info': {
+          const extras = [
+            p.mode != null ? `mode=${p.mode}` : null,
+            p.ret != null ? `ret=0x${(p.ret >>> 0).toString(16)}` : null,
+          ].filter(Boolean).join(' ');
+          pushEvent({ kind: 'bridge.init', text: `${p.msg || 'info'} ${extras}`.trim() });
           break;
+        }
         default:
           pushEvent({ kind: 'bridge.raw', text: JSON.stringify(p).slice(0, 160) });
       }

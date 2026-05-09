@@ -1,6 +1,7 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Card } from '../atoms/Card';
 import { Label } from '../atoms/Label';
+import { Button } from '../atoms/Button';
 import { useEventLog } from '../store/measureStore';
 
 const KIND_STYLES = {
@@ -25,6 +26,29 @@ const KIND_STYLES = {
 function ActivityLogImpl() {
   const log = useEventLog();
   const reversed = [...log].reverse();
+  const [copied, setCopied] = useState(false);
+
+  const onCopy = async () => {
+    const text = log.map((e) => {
+      const cfg = KIND_STYLES[e.kind] || { label: e.kind || '?' };
+      const time = formatTime(e.t);
+      const parsed = e.parsed != null ? ` → ${e.parsed} kg` : '';
+      return `${time}  [${cfg.label}]  ${e.text}${parsed}`;
+    }).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Fallback for older webview: select-and-execCommand
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {}
+      document.body.removeChild(ta);
+    }
+  };
 
   return (
     <Card className="p-5">
@@ -33,9 +57,14 @@ function ActivityLogImpl() {
           <span className="w-1.5 h-1.5 rounded-full bg-accent-400 pulse-accent" />
           <Label>Journal d'activité</Label>
         </div>
-        <span className="text-[10px] uppercase tracking-[0.16em] text-steel-400 font-mono">
-          {log.length} évén.
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] uppercase tracking-[0.16em] text-steel-400 font-mono">
+            {log.length} évén.
+          </span>
+          <Button variant="ghost" onClick={onCopy}>
+            {copied ? '✓ Copié' : 'Copier les logs'}
+          </Button>
+        </div>
       </div>
       <div className="max-h-[260px] overflow-y-auto pr-1">
         {reversed.length === 0 ? (
