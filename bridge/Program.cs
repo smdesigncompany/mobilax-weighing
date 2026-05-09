@@ -212,6 +212,15 @@ namespace MobilaxBridge
                     }
                     _algorithmType = chosenMode;
 
+                    // Force the camera into continuous (free-run) acquisition.
+                    // The MV-DB500S-V was emitting frames but never computed a
+                    // volume because TriggerMode was 'On' — it was waiting for
+                    // an external trigger (the code reader) to fire each
+                    // measurement. Disabling Trigger lets the SDK compute on
+                    // every frame.
+                    TryCameraSet("TriggerMode", 0);
+                    TryCameraSet("AcquisitionMode", 2); // Continuous (typical Hikrobot enum)
+
                     _callback = new MvVolmeasureLib.ResultCallback(OnResult);
                     ret = _sdk.RegisterResultCallBack(_callback, IntPtr.Zero);
                     if (ret != (int)ErrorCode.MV_VOLM_OK)
@@ -267,6 +276,47 @@ namespace MobilaxBridge
                 try { _sdk?.DeInit(); } catch { }
                 _sdk = null;
                 _running = false;
+            }
+        }
+
+        // Set a GenICam-style camera parameter through the volume SDK. The
+        // Net.dll method name varies; we reflectively look up the most
+        // common signatures so a missing one doesn't crash the bridge.
+        private static void TryCameraSet(string key, int value)
+        {
+            try
+            {
+                var t = _sdk.GetType();
+                // Try (string, uint) for SetEnumValue
+                var m = t.GetMethod("MV_CC_SetEnumValue", new[] { typeof(string), typeof(uint) });
+                if (m != null)
+                {
+                    var ret = (int)m.Invoke(_sdk, new object[] { key, (uint)value });
+                    EmitEvent("info", new Dictionary<string, object> {
+                        { "msg", "MV_CC_SetEnumValue " + key + "=" + value },
+                        { "ret", ret },
+                    });
+                    return;
+                }
+                m = t.GetMethod("MV_CC_SetIntValue", new[] { typeof(string), typeof(long) });
+                if (m != null)
+                {
+                    var ret = (int)m.Invoke(_sdk, new object[] { key, (long)value });
+                    EmitEvent("info", new Dictionary<string, object> {
+                        { "msg", "MV_CC_SetIntValue " + key + "=" + value },
+                        { "ret", ret },
+                    });
+                    return;
+                }
+                EmitEvent("info", new Dictionary<string, object> {
+                    { "msg", "no SetEnumValue/SetIntValue method on Net wrapper for " + key },
+                });
+            }
+            catch (Exception ex)
+            {
+                EmitEvent("info", new Dictionary<string, object> {
+                    { "msg", "TryCameraSet " + key + " threw: " + ex.Message },
+                });
             }
         }
 
