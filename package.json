@@ -1,6 +1,6 @@
 {
   "name": "mobilax-weighing",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Mobilax — application de pesée & volumétrie connectée Hengxun (Web + Windows)",
   "main": "electron/main.js",
   "scripts": {
