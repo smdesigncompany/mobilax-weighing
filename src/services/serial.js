@@ -24,6 +24,14 @@ export function startSerialBridge() {
   unsubscribe = window.mobilax.onSerialEvent(dispatch);
 }
 
+// Activity log throttle for the noisy serial stream:
+// - 'weight' events (25 Hz) only update the live panel — not logged
+// - 'raw' events are logged at most once every 2 s, AND only if the
+//   parsed weight changed since the last log entry. The other events
+//   (open/close/error/init/sent) always go through.
+let lastRawLoggedAt = 0;
+let lastRawWeight = null;
+
 function makeDispatcher() {
   return (evt) => {
     const { setSerialStatus, setLiveWeight, pushEvent } = useMeasureStore.getState();
@@ -43,9 +51,18 @@ function makeDispatcher() {
       case 'weight':
         setLiveWeight({ weight: evt.weight, stable: evt.stable });
         break;
-      case 'raw':
-        pushEvent({ kind: 'serial.raw', text: evt.line, parsed: evt.weight });
+      case 'raw': {
+        const now = Date.now();
+        const w = evt.weight;
+        const changed = w != null && (lastRawWeight == null || Math.abs(w - lastRawWeight) > 0.02);
+        const old = now - lastRawLoggedAt > 2000;
+        if (changed && old) {
+          pushEvent({ kind: 'serial.raw', text: evt.line, parsed: w });
+          lastRawLoggedAt = now;
+          lastRawWeight = w;
+        }
         break;
+      }
       case 'init':
         pushEvent({ kind: 'serial.open', text: evt.text || 'init' });
         break;
