@@ -42,6 +42,25 @@ function buildMeasure(id, weight, d) {
   };
 }
 
+// Per-axis median of a small array of dim frames. Robust to outliers and
+// removes the 1–2 mm camera jitter that would otherwise bleed into the QR.
+function medianDims(history, fallback) {
+  const arr = (history || []).filter(Boolean);
+  if (arr.length === 0) return fallback || {};
+  const median = (key) => {
+    const xs = arr.map((d) => d?.[key]).filter((v) => v != null).sort((a, b) => a - b);
+    if (xs.length === 0) return null;
+    const mid = Math.floor(xs.length / 2);
+    return xs.length % 2 ? xs[mid] : Math.round(((xs[mid - 1] + xs[mid]) / 2) * 100) / 100;
+  };
+  return {
+    len: median('len'),
+    width: median('width'),
+    height: median('height'),
+    vol: median('vol'),
+  };
+}
+
 function dimsTxtOf(d) {
   if (!d || (!d.len && !d.width && !d.height)) return '';
   return ` | L${d.len ?? '?'}×l${d.width ?? '?'}×h${d.height ?? '?'} mm`;
@@ -80,7 +99,10 @@ export const useMeasureStore = create((set, get) => ({
 
   liveWeight: null,
   liveStable: false,
-  liveDims: null, // { len, width, height, vol } from the camera bridge
+  liveDims: null, // { len, width, height, vol } — latest frame from the camera bridge
+  // Rolling buffer of recent volume frames. At lock time we take the
+  // median per axis to filter sensor jitter (1–2 mm noise on dims is normal).
+  liveDimsHistory: [],
   armedAt: null,
   weightAtArm: null,
   dimsAtArm: null,
@@ -88,7 +110,13 @@ export const useMeasureStore = create((set, get) => ({
   // when it last looked stable. Used to enforce the MIN_STABLE_MS dwell.
   detectedAt: null,
   stableSince: null,
-  setLiveDims: (dims) => set({ liveDims: dims }),
+  setLiveDims: (dims) => set((s) => {
+    const next = [...s.liveDimsHistory, dims];
+    return {
+      liveDims: dims,
+      liveDimsHistory: next.length > 5 ? next.slice(-5) : next,
+    };
+  }),
   serialStatus: 'unknown', // 'open' | 'error' | 'closed' | 'unknown'
   serialError: null,
   serialPath: null,
@@ -103,30 +131,10 @@ export const useMeasureStore = create((set, get) => ({
     const next = { liveWeight: weight, liveStable: !!stable };
     if (weight == null) return next;
 
-    // Manual flow: legacy auto-lock when an operator armed pendingId.
-    if (stable && s.pendingId && (s.armedAt ? now - s.armedAt >= 1500 : false)) {
-      const id = s.pendingId;
-      const d = s.liveDims || {};
-      next.measure = buildMeasure(id, weight, d);
-      next.status = 'locked';
-      next.receivedAt = now;
-      next.measureCount = s.measureCount + 1;
-      next.pendingId = null;
-      next.armedAt = null;
-      next.detectedAt = null;
-      next.stableSince = null;
-      next.eventLog = appendEvent(s.eventLog, {
-        kind: 'measure.locked',
-        text: `Auto-verrouillage — ${id} | ${weight} kg${dimsTxtOf(d)} (poids stable)`,
-      });
-      return next;
-    }
-
-    // Automatic state machine flow (no button required).
     const above = weight >= PLACE_THRESHOLD_KG;
     const below = weight <= REMOVE_THRESHOLD_KG;
 
-    // Reset back to idle once the package is removed.
+    // ─── Reset back to idle once the package is removed ──────────────
     if (s.status === 'locked' && below) {
       next.status = 'idle';
       next.detectedAt = null;
@@ -138,54 +146,58 @@ export const useMeasureStore = create((set, get) => ({
       return next;
     }
 
+    // While locked, ignore further weight changes.
+    if (s.status === 'locked') return next;
+
+    // ─── Detect placement (visual feedback) ──────────────────────────
     if (s.status === 'idle' && above) {
       next.status = 'detected';
       next.detectedAt = now;
-      next.stableSince = stable ? now : null;
       next.eventLog = appendEvent(s.eventLog, {
         kind: 'user.new',
         text: `Colis détecté (${weight.toFixed(2)} kg) — attente stabilisation`,
       });
+      // Don't return; fall through so a single 'stable' event in the
+      // same dispatch can lock immediately.
+    }
+
+    // Cancel detection if weight goes back below threshold.
+    if (s.status === 'detected' && below) {
+      next.status = 'idle';
+      next.detectedAt = null;
       return next;
     }
 
-    if (s.status === 'detected') {
-      // Track stability window
-      if (stable) {
-        if (s.stableSince == null) next.stableSince = now;
+    // ─── Lock condition ─────────────────────────────────────────────
+    // The bridge's STABLE_WINDOW_MS already enforces a dwell window
+    // before raising stable=true. So as soon as we see stable=true with
+    // a placement-grade weight, we lock — no need to re-time it here.
+    const wantsLock = stable && above && (s.status === 'detected' || next.status === 'detected'
+      || s.pendingId);
+
+    if (wantsLock) {
+      let id, counter = s.dailyCounter;
+      if (s.pendingId) {
+        id = s.pendingId;
       } else {
-        next.stableSince = null;
-      }
-      const heldFor = (s.stableSince ?? next.stableSince ?? now) === now
-        ? 0
-        : now - (s.stableSince ?? next.stableSince);
-      const stableLongEnough = stable && (s.stableSince ? (now - s.stableSince) >= MIN_STABLE_MS : false);
-      if (stableLongEnough && below === false && above) {
-        const counter = s.dailyCounter + 1;
+        counter = s.dailyCounter + 1;
         saveCounter(counter);
-        const id = buildPendingId(counter);
-        const d = s.liveDims || {};
-        next.measure = buildMeasure(id, weight, d);
-        next.status = 'locked';
-        next.dailyCounter = counter;
-        next.receivedAt = now;
-        next.measureCount = s.measureCount + 1;
-        next.pendingId = null;
-        next.armedAt = null;
-        next.detectedAt = null;
-        next.stableSince = null;
-        next.eventLog = appendEvent(s.eventLog, {
-          kind: 'measure.locked',
-          text: `Auto — ${id} | ${weight.toFixed(2)} kg${dimsTxtOf(d)}`,
-        });
-        return next;
+        id = buildPendingId(counter);
       }
-      // Cancel detection if weight goes back below threshold
-      if (below) {
-        next.status = 'idle';
-        next.detectedAt = null;
-        next.stableSince = null;
-      }
+      const d = medianDims(s.liveDimsHistory, s.liveDims);
+      next.measure = buildMeasure(id, weight, d);
+      next.status = 'locked';
+      next.dailyCounter = counter;
+      next.receivedAt = now;
+      next.measureCount = s.measureCount + 1;
+      next.pendingId = null;
+      next.armedAt = null;
+      next.detectedAt = null;
+      next.stableSince = null;
+      next.eventLog = appendEvent(s.eventLog, {
+        kind: 'measure.locked',
+        text: `Auto — ${id} | ${weight.toFixed(2)} kg${dimsTxtOf(d)}`,
+      });
     }
 
     return next;
