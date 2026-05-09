@@ -29,32 +29,65 @@ function appendEvent(log, entry) {
   return next.length > 100 ? next.slice(-100) : next;
 }
 
+function buildMeasure(id, weight, d) {
+  return {
+    barcode: id,
+    codeSource: 'generated',
+    datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+    weight,
+    len: d.len ?? null,
+    width: d.width ?? null,
+    height: d.height ?? null,
+    vol: d.vol ?? null,
+  };
+}
+
+function dimsTxtOf(d) {
+  if (!d || (!d.len && !d.width && !d.height)) return '';
+  return ` | L${d.len ?? '?'}×l${d.width ?? '?'}×h${d.height ?? '?'} mm`;
+}
+
 function buildPendingId(n) {
   const d = new Date();
   const ymd = `${String(d.getFullYear()).slice(2)}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   return `MBX-${ymd}-${String(n).padStart(4, '0')}`;
 }
 
+// Operator workflow state machine. The camera only emits volume frames on
+// scene changes (placing/removing the package), so we can't expect a steady
+// stream — but each placement does produce a burst of frames, which is
+// enough to lock a measurement automatically.
+//
+// idle      → no package
+// detected  → weight crossed the placement threshold; waiting for stability
+//             and a volume reading from the camera
+// locked    → measurement frozen with current values + auto-generated ID
+//             (operator removes the package to go back to idle)
+const PLACE_THRESHOLD_KG = 0.1;     // weight above this = package placed
+const REMOVE_THRESHOLD_KG = 0.05;   // weight below this = package removed
+const MIN_STABLE_MS = 700;          // weight must hold this long before lock
+
 export const useMeasureStore = create((set, get) => ({
   measure: null,
-  status: 'idle',
+  status: 'idle',          // 'idle' | 'detected' | 'locked'
   connection: 'disconnected',
   error: null,
   receivedAt: null,
   measureCount: 0,
 
-  pendingId: null,
+  pendingId: null,         // legacy: retained so manual flow still works
   dailyCounter: loadCounter(),
 
   liveWeight: null,
   liveStable: false,
   liveDims: null, // { len, width, height, vol } from the camera bridge
-  // Snapshots taken when newPackage() arms a pending ID. Auto-lock requires
-  // the live values to have moved away from these snapshots so we don't
-  // record the previous package's measurement against a fresh ID.
   armedAt: null,
   weightAtArm: null,
   dimsAtArm: null,
+  // Auto-flow timestamps: when weight crossed the placement threshold and
+  // when it last looked stable. Used to enforce the MIN_STABLE_MS dwell.
+  detectedAt: null,
+  stableSince: null,
   setLiveDims: (dims) => set({ liveDims: dims }),
   serialStatus: 'unknown', // 'open' | 'error' | 'closed' | 'unknown'
   serialError: null,
@@ -66,42 +99,95 @@ export const useMeasureStore = create((set, get) => ({
     return { eventLog: next.length > 100 ? next.slice(-100) : next };
   }),
   setLiveWeight: ({ weight, stable }) => set((s) => {
+    const now = Date.now();
     const next = { liveWeight: weight, liveStable: !!stable };
-    // Auto-lock conditions:
-    //   1. A pending ID must be armed
-    //   2. Weight must be stable
-    //   3. A 1.5s grace window after arming so the operator has time to
-    //      place the package before lock fires.
-    // The live panels show the current values continuously, so the operator
-    // can see what is about to be recorded — no need to force a value change.
-    if (!stable || !s.pendingId || weight == null) return next;
-    const elapsed = s.armedAt ? Date.now() - s.armedAt : Infinity;
-    if (elapsed < 1500) return next;
+    if (weight == null) return next;
 
-    const id = s.pendingId;
-    const d = s.liveDims || {};
-    next.measure = {
-      barcode: id,
-      codeSource: 'generated',
-      datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      weight,
-      len: d.len ?? null,
-      width: d.width ?? null,
-      height: d.height ?? null,
-      vol: d.vol ?? null,
-    };
-    next.status = 'ready';
-    next.receivedAt = Date.now();
-    next.measureCount = s.measureCount + 1;
-    next.pendingId = null;
-    next.armedAt = null;
-    const dimsTxt = (d.len || d.width || d.height)
-      ? ` | L${d.len ?? '?'}×l${d.width ?? '?'}×h${d.height ?? '?'} mm`
-      : '';
-    next.eventLog = appendEvent(s.eventLog, {
-      kind: 'measure.locked',
-      text: `Auto-verrouillage — ${id} | ${weight} kg${dimsTxt} (poids stable)`,
-    });
+    // Manual flow: legacy auto-lock when an operator armed pendingId.
+    if (stable && s.pendingId && (s.armedAt ? now - s.armedAt >= 1500 : false)) {
+      const id = s.pendingId;
+      const d = s.liveDims || {};
+      next.measure = buildMeasure(id, weight, d);
+      next.status = 'locked';
+      next.receivedAt = now;
+      next.measureCount = s.measureCount + 1;
+      next.pendingId = null;
+      next.armedAt = null;
+      next.detectedAt = null;
+      next.stableSince = null;
+      next.eventLog = appendEvent(s.eventLog, {
+        kind: 'measure.locked',
+        text: `Auto-verrouillage — ${id} | ${weight} kg${dimsTxtOf(d)} (poids stable)`,
+      });
+      return next;
+    }
+
+    // Automatic state machine flow (no button required).
+    const above = weight >= PLACE_THRESHOLD_KG;
+    const below = weight <= REMOVE_THRESHOLD_KG;
+
+    // Reset back to idle once the package is removed.
+    if (s.status === 'locked' && below) {
+      next.status = 'idle';
+      next.detectedAt = null;
+      next.stableSince = null;
+      next.eventLog = appendEvent(s.eventLog, {
+        kind: 'user.new',
+        text: `Réinitialisation — colis retiré (${weight.toFixed(2)} kg)`,
+      });
+      return next;
+    }
+
+    if (s.status === 'idle' && above) {
+      next.status = 'detected';
+      next.detectedAt = now;
+      next.stableSince = stable ? now : null;
+      next.eventLog = appendEvent(s.eventLog, {
+        kind: 'user.new',
+        text: `Colis détecté (${weight.toFixed(2)} kg) — attente stabilisation`,
+      });
+      return next;
+    }
+
+    if (s.status === 'detected') {
+      // Track stability window
+      if (stable) {
+        if (s.stableSince == null) next.stableSince = now;
+      } else {
+        next.stableSince = null;
+      }
+      const heldFor = (s.stableSince ?? next.stableSince ?? now) === now
+        ? 0
+        : now - (s.stableSince ?? next.stableSince);
+      const stableLongEnough = stable && (s.stableSince ? (now - s.stableSince) >= MIN_STABLE_MS : false);
+      if (stableLongEnough && below === false && above) {
+        const counter = s.dailyCounter + 1;
+        saveCounter(counter);
+        const id = buildPendingId(counter);
+        const d = s.liveDims || {};
+        next.measure = buildMeasure(id, weight, d);
+        next.status = 'locked';
+        next.dailyCounter = counter;
+        next.receivedAt = now;
+        next.measureCount = s.measureCount + 1;
+        next.pendingId = null;
+        next.armedAt = null;
+        next.detectedAt = null;
+        next.stableSince = null;
+        next.eventLog = appendEvent(s.eventLog, {
+          kind: 'measure.locked',
+          text: `Auto — ${id} | ${weight.toFixed(2)} kg${dimsTxtOf(d)}`,
+        });
+        return next;
+      }
+      // Cancel detection if weight goes back below threshold
+      if (below) {
+        next.status = 'idle';
+        next.detectedAt = null;
+        next.stableSince = null;
+      }
+    }
+
     return next;
   }),
 

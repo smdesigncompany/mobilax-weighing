@@ -1,20 +1,24 @@
 import { memo } from 'react';
 import { Button } from '../atoms/Button';
 import { Badge } from '../atoms/Badge';
-import { useMeasureStore, usePendingId, useDailyCounter, useFreshness } from '../store/measureStore';
+import { useMeasureStore, useStatus, useDailyCounter, useBarcode } from '../store/measureStore';
 import { hasApiConfigured } from '../services/config';
 import { apiFetch } from '../services/socket';
 
-// Main operator action: arms the next package ID. Once armed, the
-// next stable weight read from the balance (or HTTP/TCP measure) is
-// recorded under that ID and the slot clears.
-function NewPackageBarImpl() {
-  const pendingId = usePendingId();
-  const daily = useDailyCounter();
-  const freshness = useFreshness();
+// Replaces the old "Nouveau colis" button with a state-machine status
+// banner. The flow is fully automatic now: place package → detected →
+// stable → locked → remove → idle. The manual "Nouveau colis" path is
+// kept as an escape hatch in case the auto-flow doesn't fit.
+const STATE_LABELS = {
+  idle:     { tone: 'neutral', text: 'En attente — posez un colis' },
+  detected: { tone: 'warning', text: 'Stabilisation en cours…' },
+  locked:   { tone: 'success', text: '✓ Mesure verrouillée — retirez le colis' },
+};
 
-  const onNew = () => useMeasureStore.getState().newPackage();
-  const onValidate = () => useMeasureStore.getState().validateNow();
+function NewPackageBarImpl() {
+  const status = useStatus();
+  const daily = useDailyCounter();
+  const lockedBarcode = useBarcode();
 
   const onSimulate = async () => {
     const store = useMeasureStore.getState();
@@ -41,44 +45,39 @@ function NewPackageBarImpl() {
     store.setMeasure(fake, 'simulate');
   };
 
+  const cfg = STATE_LABELS[status] || STATE_LABELS.idle;
+
   return (
     <div className="relative flex items-center justify-between gap-4 px-6 py-4 surface-panel rounded-lg overflow-hidden">
-      <span className="absolute left-0 top-0 bottom-0 w-1 bg-accent-500" />
+      <span className={`absolute left-0 top-0 bottom-0 w-1 ${
+        status === 'locked' ? 'bg-emerald-400'
+        : status === 'detected' ? 'bg-amber-400'
+        : 'bg-accent-500'
+      }`} />
       <div className="flex items-center gap-4 pl-2">
         <span className="text-[10px] font-bold text-accent-400 uppercase tracking-[0.22em]">
           ▸ Préparation
         </span>
         <span className="w-px h-6 bg-steel-700/60" />
-        {pendingId ? (
-          <div className="flex items-center gap-2">
-            {freshness === 'fresh' ? (
-              <Badge tone="success">✓ Nouvelles données</Badge>
-            ) : freshness === 'stale-but-armed' ? (
-              <Badge tone="warning">⚠ En attente nouvelles mesures</Badge>
-            ) : (
-              <Badge tone="info">⏳ Pose le colis…</Badge>
-            )}
-            <span className="text-sm font-mono text-accent-400 tracking-wider">
-              {pendingId}
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
+        <Badge tone={cfg.tone}>{cfg.text}</Badge>
+        {status === 'locked' && lockedBarcode && (
+          <span className="text-sm font-mono text-emerald-300 tracking-wider">
+            {lockedBarcode}
+          </span>
+        )}
+        {status === 'idle' && (
+          <span className="flex items-center gap-2 ml-2">
             <span className="text-[10px] uppercase tracking-[0.16em] text-steel-300 font-semibold">
               Compteur du jour
             </span>
             <span className="text-2xl font-mono font-bold text-white tabular-nums">
               {String(daily).padStart(3, '0')}
             </span>
-          </div>
+          </span>
         )}
       </div>
       <div className="flex items-center gap-2">
         <Button variant="ghost" onClick={onSimulate}>Simuler</Button>
-        {pendingId && (
-          <Button variant="ghost" onClick={onValidate}>Valider maintenant</Button>
-        )}
-        <Button onClick={onNew}>+ Nouveau colis</Button>
       </div>
     </div>
   );
