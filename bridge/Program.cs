@@ -59,6 +59,12 @@ namespace MobilaxBridge
                 if (args[i] == "--serial" && i + 1 < args.Length) _selectedSerial = args[i + 1];
             }
 
+            // Make sure Stop()/DeInit() runs even if the host kills us with
+            // SIGTERM / closes the parent process. Otherwise the camera
+            // firmware keeps thinking we hold it and refuses 3DMVS, etc.
+            AppDomain.CurrentDomain.ProcessExit += (_, __) => ShutdownInternal();
+            Console.CancelKeyPress += (_, e) => { e.Cancel = false; ShutdownInternal(); };
+
             Console.OutputEncoding = Encoding.UTF8;
             EmitEvent("ready", new Dictionary<string, object> {
                 { "mode", _algorithmType },
@@ -293,18 +299,39 @@ namespace MobilaxBridge
             return string.Empty;
         }
 
-        // SDK callback — fires whenever a new result frame is ready.
+        // SDK callback — fires for every result frame the camera produces.
+        // We always count + emit a heartbeat event so the journal shows that
+        // frames ARE flowing (even when the volume flag is off, e.g. camera
+        // streams images but not yet a measurement). Volume frames come on
+        // top with the dimensions payload.
+        private static int _heartbeatEvery = 10; // throttle non-volume heartbeats
         private static void OnResult(ref ResultInfo info, IntPtr pUser)
         {
-            if (info.nVolumeFlag != 1) return;
             _frameCount++;
-            EmitEvent("volume", new Dictionary<string, object> {
-                { "len", info.stVolumeInfo.length },
-                { "width", info.stVolumeInfo.width },
-                { "height", info.stVolumeInfo.height },
-                { "vol", info.stVolumeInfo.volume },
-                { "frame", _frameCount },
-            });
+            bool hasVolume = info.nVolumeFlag == 1;
+            bool hasImage = info.nImgFlag == 1;
+            if (hasVolume)
+            {
+                EmitEvent("volume", new Dictionary<string, object> {
+                    { "len", info.stVolumeInfo.length },
+                    { "width", info.stVolumeInfo.width },
+                    { "height", info.stVolumeInfo.height },
+                    { "vol", info.stVolumeInfo.volume },
+                    { "frame", _frameCount },
+                });
+            }
+            else if ((_frameCount % _heartbeatEvery) == 1)
+            {
+                // Non-volume frames are common — log a lightweight heartbeat
+                // periodically so we can see the SDK is alive even without
+                // a measurement.
+                EmitEvent("info", new Dictionary<string, object> {
+                    { "msg", "frame received without volume" },
+                    { "frame", _frameCount },
+                    { "imgFlag", info.nImgFlag },
+                    { "volumeFlag", info.nVolumeFlag },
+                });
+            }
         }
 
         // ---------- minimal JSON emission (one line per event) ----------
