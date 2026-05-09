@@ -271,6 +271,23 @@ export const useMeasureStore = create((set, get) => ({
   // references validateNow).
   validateNow: () => get().freezeNow(),
 
+  // Manual reset back to idle so the auto-flow can fire again on the
+  // current package without having to physically remove and re-place it.
+  // Useful when an early auto-lock missed the camera dims.
+  resetSession: () => set((s) => ({
+    measure: null,
+    status: 'idle',
+    detectedAt: null,
+    stableSince: null,
+    pendingId: null,
+    armedAt: null,
+    liveDimsHistory: [],
+    eventLog: appendEvent(s.eventLog, {
+      kind: 'user.new',
+      text: 'Session réinitialisée — auto-flow réarmé',
+    }),
+  })),
+
   // Generates the next pending ID and arms the slot.
   // Records the live values at the moment of arming so we can reject
   // stale auto-locks (next package picking up the previous package's
