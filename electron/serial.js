@@ -76,9 +76,11 @@ function setupSerial({
 
       port.on('data', (chunk) => {
         buffer += chunk.toString('utf8');
-        // 1. Yaohua / yhlo frames: ASCII like "=67.20000" with NO terminator,
-        //    9 bytes, broadcast continuously. We extract every match greedily.
-        const yhRe = /=([+-]?\d+(?:\.\d+)?)/g;
+        // 1. Yaohua / yhlo frames: ASCII like "=77.20000" (digits in reverse
+        //    byte order — actual weight is "02.77"), no terminator, ~9 bytes,
+        //    broadcast continuously. We accept any sequence of digits and
+        //    optional dots after the '=' anchor.
+        const yhRe = /=([0-9.]{4,16})/g;
         let lastIndex = 0;
         let yh;
         while ((yh = yhRe.exec(buffer))) {
@@ -154,10 +156,14 @@ function setupSerial({
 }
 
 function parseWeight(line) {
-  // Yaohua / yhlo: "=67.20000"
-  const yh = line.match(/^=([+-]?\d+(?:\.\d+)?)$/);
+  // Yaohua / yhlo: the balance transmits digits in REVERSE byte order
+  // (DataOutput's Common tab confirms this with "Reverse: Yes"). On the
+  // wire we get e.g. "=77.20000" but the actual weight is "02.77000".
+  // We reverse the string after the leading '=' before parsing.
+  const yh = line.match(/^=(.+)$/);
   if (yh) {
-    const v = parseFloat(yh[1]);
+    const reversed = yh[1].split('').reverse().join('');
+    const v = parseFloat(reversed);
     return Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
   }
   const json = tryJson(line);
