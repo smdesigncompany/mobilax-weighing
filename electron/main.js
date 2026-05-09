@@ -99,6 +99,10 @@ function createWindow() {
     emit: bridgeEmit,
     app,
     mode: Number(process.env.MOBILAX_CAM_MODE) || 14,
+    // MV-DB500S-V is the actual volumetric camera; the other GigE device
+    // on the same bus (MV-PD01...) is just a barcode scanner. Pin to the
+    // volumetric camera by default; override via MOBILAX_CAM_SERIAL.
+    serial: process.env.MOBILAX_CAM_SERIAL || '00DA4015560',
   });
   ipcMain.handle('bridge:flush', () => bridgeBuffer.splice(0));
   ipcMain.handle('bridge:write', (_e, cmd) => {
