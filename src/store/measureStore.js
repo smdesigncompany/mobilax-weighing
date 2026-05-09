@@ -91,6 +91,40 @@ export const useMeasureStore = create((set, get) => ({
     return next;
   }),
 
+  // Force-lock the current pending package with whatever live values we have.
+  // Useful when the weight never stabilises (vibration, light items) or the
+  // camera hasn't produced a frame yet — the operator validates manually.
+  validateNow: () => set((s) => {
+    if (!s.pendingId) return {};
+    const id = s.pendingId;
+    const d = s.liveDims || {};
+    const w = s.liveWeight;
+    const m = {
+      barcode: id,
+      codeSource: 'generated',
+      datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      weight: w ?? null,
+      len: d.len ?? null,
+      width: d.width ?? null,
+      height: d.height ?? null,
+      vol: d.vol ?? null,
+    };
+    const dimsTxt = (d.len || d.width || d.height)
+      ? ` | L${d.len ?? '?'}×l${d.width ?? '?'}×h${d.height ?? '?'} mm`
+      : '';
+    return {
+      measure: m,
+      status: 'ready',
+      receivedAt: Date.now(),
+      measureCount: s.measureCount + 1,
+      pendingId: null,
+      eventLog: appendEvent(s.eventLog, {
+        kind: 'measure.locked',
+        text: `Validation manuelle — ${id} | ${w ?? '—'} kg${dimsTxt}`,
+      }),
+    };
+  }),
+
   // Generates the next pending ID and arms the slot.
   newPackage: () => set((s) => {
     const next = s.dailyCounter + 1;

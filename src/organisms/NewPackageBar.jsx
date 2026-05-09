@@ -13,6 +13,7 @@ function NewPackageBarImpl() {
   const daily = useDailyCounter();
 
   const onNew = () => useMeasureStore.getState().newPackage();
+  const onValidate = () => useMeasureStore.getState().validateNow();
 
   const onSimulate = async () => {
     const store = useMeasureStore.getState();
@@ -67,6 +68,9 @@ function NewPackageBarImpl() {
       </div>
       <div className="flex items-center gap-2">
         <Button variant="ghost" onClick={onSimulate}>Simuler</Button>
+        {pendingId && (
+          <Button variant="ghost" onClick={onValidate}>Valider maintenant</Button>
+        )}
         <Button onClick={onNew}>+ Nouveau colis</Button>
       </div>
     </div>
