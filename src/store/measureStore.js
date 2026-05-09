@@ -67,28 +67,16 @@ export const useMeasureStore = create((set, get) => ({
   }),
   setLiveWeight: ({ weight, stable }) => set((s) => {
     const next = { liveWeight: weight, liveStable: !!stable };
-    // Auto-lock guards against stale data:
+    // Auto-lock conditions:
     //   1. A pending ID must be armed
     //   2. Weight must be stable
-    //   3. We require either fresh camera dims OR a weight change ≥ 50g
-    //      since arming, so the previous package's values can't be locked
-    //      against a brand new ID.
-    //   4. A 1.5s grace window lets the operator place the package before
-    //      auto-lock fires.
+    //   3. A 1.5s grace window after arming so the operator has time to
+    //      place the package before lock fires.
+    // The live panels show the current values continuously, so the operator
+    // can see what is about to be recorded — no need to force a value change.
     if (!stable || !s.pendingId || weight == null) return next;
-
     const elapsed = s.armedAt ? Date.now() - s.armedAt : Infinity;
     if (elapsed < 1500) return next;
-
-    const armW = s.weightAtArm;
-    const weightChanged = armW == null || Math.abs(weight - armW) >= 0.05;
-    const dimsArrived = s.liveDims && (
-      !s.dimsAtArm
-      || s.liveDims.len !== s.dimsAtArm.len
-      || s.liveDims.width !== s.dimsAtArm.width
-      || s.liveDims.height !== s.dimsAtArm.height
-    );
-    if (!weightChanged && !dimsArrived) return next;
 
     const id = s.pendingId;
     const d = s.liveDims || {};
