@@ -76,6 +76,17 @@ function setupSerial({
 
       port.on('data', (chunk) => {
         buffer += chunk.toString('utf8');
+        // 1. Yaohua / yhlo frames: ASCII like "=67.20000" with NO terminator,
+        //    9 bytes, broadcast continuously. We extract every match greedily.
+        const yhRe = /=([+-]?\d+(?:\.\d+)?)/g;
+        let lastIndex = 0;
+        let yh;
+        while ((yh = yhRe.exec(buffer))) {
+          handleLine(yh[0]);
+          lastIndex = yh.index + yh[0].length;
+        }
+        if (lastIndex > 0) buffer = buffer.slice(lastIndex);
+        // 2. Newline-terminated frames (Mettler / JSON / generic): keep working too.
         let m;
         while ((m = buffer.match(FRAME_DELIMITER))) {
           const idx = m.index;
@@ -83,7 +94,7 @@ function setupSerial({
           buffer = buffer.slice(idx + m[0].length);
           if (line) handleLine(line);
         }
-        if (buffer.length > 64) buffer = buffer.slice(-64);
+        if (buffer.length > 256) buffer = buffer.slice(-256);
       });
 
       port.on('close', () => { emit({ kind: 'close' }); scheduleReopen(); });
@@ -143,6 +154,12 @@ function setupSerial({
 }
 
 function parseWeight(line) {
+  // Yaohua / yhlo: "=67.20000"
+  const yh = line.match(/^=([+-]?\d+(?:\.\d+)?)$/);
+  if (yh) {
+    const v = parseFloat(yh[1]);
+    return Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
+  }
   const json = tryJson(line);
   if (json && typeof json.weight === 'number') return json.weight;
   const num = line.match(/([+-]?\d+\.?\d*)\s*(?:kg|KG|g|G)?/);
