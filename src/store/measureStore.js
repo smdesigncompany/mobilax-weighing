@@ -111,11 +111,42 @@ export const useMeasureStore = create((set, get) => ({
   detectedAt: null,
   stableSince: null,
   setLiveDims: (dims) => set((s) => {
-    const next = [...s.liveDimsHistory, dims];
-    return {
-      liveDims: dims,
-      liveDimsHistory: next.length > 5 ? next.slice(-5) : next,
-    };
+    const hist = [...s.liveDimsHistory, dims];
+    const trimmed = hist.length > 5 ? hist.slice(-5) : hist;
+    const next = { liveDims: dims, liveDimsHistory: trimmed };
+
+    // If we were waiting to lock (status=detected, weight stable, weight
+    // above threshold) and dims just arrived, fire the lock now so the
+    // measurement includes the camera reading.
+    const w = s.liveWeight;
+    const above = w != null && w >= PLACE_THRESHOLD_KG;
+    const wantsLock = s.liveStable && above
+      && (s.status === 'detected' || s.pendingId);
+    if (wantsLock) {
+      let id, counter = s.dailyCounter;
+      if (s.pendingId) {
+        id = s.pendingId;
+      } else {
+        counter = s.dailyCounter + 1;
+        saveCounter(counter);
+        id = buildPendingId(counter);
+      }
+      const d = medianDims(trimmed, dims);
+      next.measure = buildMeasure(id, w, d);
+      next.status = 'locked';
+      next.dailyCounter = counter;
+      next.receivedAt = Date.now();
+      next.measureCount = s.measureCount + 1;
+      next.pendingId = null;
+      next.armedAt = null;
+      next.detectedAt = null;
+      next.stableSince = null;
+      next.eventLog = appendEvent(s.eventLog, {
+        kind: 'measure.locked',
+        text: `Auto — ${id} | ${w.toFixed(2)} kg${dimsTxtOf(d)} (caméra)`,
+      });
+    }
+    return next;
   }),
   serialStatus: 'unknown', // 'open' | 'error' | 'closed' | 'unknown'
   serialError: null,
@@ -139,6 +170,8 @@ export const useMeasureStore = create((set, get) => ({
       next.status = 'idle';
       next.detectedAt = null;
       next.stableSince = null;
+      next.liveDims = null;
+      next.liveDimsHistory = [];
       next.eventLog = appendEvent(s.eventLog, {
         kind: 'user.new',
         text: `Réinitialisation — colis retiré (${weight.toFixed(2)} kg)`,
@@ -170,10 +203,13 @@ export const useMeasureStore = create((set, get) => ({
 
     // ─── Lock condition ─────────────────────────────────────────────
     // The bridge's STABLE_WINDOW_MS already enforces a dwell window
-    // before raising stable=true. So as soon as we see stable=true with
-    // a placement-grade weight, we lock — no need to re-time it here.
-    const wantsLock = stable && above && (s.status === 'detected' || next.status === 'detected'
-      || s.pendingId);
+    // before raising stable=true, so we don't re-time. We DO require at
+    // least one camera frame to have landed (history > 0) — without it
+    // the lock would record dims=null. setLiveDims also re-checks this
+    // condition so the lock can fire as soon as the first frame arrives.
+    const hasDims = s.liveDimsHistory && s.liveDimsHistory.length > 0;
+    const wantsLock = stable && above && hasDims
+      && (s.status === 'detected' || next.status === 'detected' || s.pendingId);
 
     if (wantsLock) {
       let id, counter = s.dailyCounter;
