@@ -16,15 +16,13 @@ function HeaderImpl() {
         <div className="flex flex-col">
           <h1 className="text-base font-bold text-white tracking-[0.18em] uppercase">
             Mobilax <span className="text-accent-400">Weighing</span>
+            <span className="ml-2 text-[10px] tracking-[0.16em] text-steel-400 font-mono align-middle">
+              v{__APP_VERSION__}
+            </span>
           </h1>
           <p className="text-[10px] uppercase tracking-[0.22em] text-steel-300 font-semibold">
             Station de pesée &amp; volumétrie
           </p>
-        </div>
-        <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l border-steel-700/60">
-          <span className="text-[10px] uppercase tracking-[0.16em] text-steel-400 font-mono">
-            v0.3
-          </span>
         </div>
       </div>
       <div className="flex items-center gap-3">
