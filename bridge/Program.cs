@@ -18,15 +18,21 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
-using MvVolmeasure.NET;
+using MvVolmeasureLib = MvVolmeasure.NET.MvVolmeasure;
+// Brings VOLM_RESULT_INFO, ERROR_DEFINE, CAMERATYPE_DEFINE into scope.
+// Cannot put `using MvVolmeasure.NET;` directly because the outer
+// namespace `MvVolmeasure` collides with the class of the same name.
+using ResultInfo = MvVolmeasure.NET.VOLM_RESULT_INFO;
+using ErrorCode = MvVolmeasure.NET.ERROR_DEFINE;
+using CameraType = MvVolmeasure.NET.CAMERATYPE_DEFINE;
 
 namespace MobilaxBridge
 {
     internal static class Program
     {
-        private static MvVolmeasure _sdk;
-        private static MvVolmeasure.ResultCallback _callback;
-        private static int _algorithmType = (int)CAMERATYPE_DEFINE.CAMERA_TYPE_BINOSTEREO_RGBD; // mode 14 by default
+        private static MvVolmeasureLib _sdk;
+        private static MvVolmeasureLib.ResultCallback _callback;
+        private static int _algorithmType = (int)CameraType.CAMERA_TYPE_BINOSTEREO_RGBD; // mode 14 by default
         private static string _configFolder = null;
         private static string _selectedSerial = null;
         private static bool _running = false;
@@ -123,12 +129,12 @@ namespace MobilaxBridge
                 if (_running) return true;
                 try
                 {
-                    _sdk = _sdk ?? new MvVolmeasure();
+                    _sdk = _sdk ?? new MvVolmeasureLib();
 
                     // Enumerate GigE devices and pick the first (or by serial)
-                    var devList = new MvVolmeasure.VOLM_DEVICE_INFO_LIST();
-                    var enumRet = MvVolmeasure.EnumStereoCamEx(MvVolmeasure.MV_VOLM_GIGE_DEVICE, ref devList);
-                    if (enumRet != (int)ERROR_DEFINE.MV_VOLM_OK || devList.nDeviceNum == 0)
+                    var devList = new MvVolmeasureLib.VOLM_DEVICE_INFO_LIST();
+                    var enumRet = MvVolmeasureLib.EnumStereoCamEx(MvVolmeasureLib.MV_VOLM_GIGE_DEVICE, ref devList);
+                    if (enumRet != (int)ErrorCode.MV_VOLM_OK || devList.nDeviceNum == 0)
                     {
                         EmitEvent("error", new Dictionary<string, object> {
                             { "msg", "no GigE camera found" },
@@ -156,7 +162,7 @@ namespace MobilaxBridge
                     });
 
                     var ret = _sdk.CreateHandleBySerial(serial);
-                    if (ret != (int)ERROR_DEFINE.MV_VOLM_OK)
+                    if (ret != (int)ErrorCode.MV_VOLM_OK)
                     {
                         EmitEvent("error", new Dictionary<string, object> {
                             { "msg", "CreateHandleBySerial failed" },
@@ -167,7 +173,7 @@ namespace MobilaxBridge
                     }
 
                     ret = _sdk.SetAlgorithmType((uint)_algorithmType);
-                    if (ret != (int)ERROR_DEFINE.MV_VOLM_OK)
+                    if (ret != (int)ErrorCode.MV_VOLM_OK)
                     {
                         EmitEvent("error", new Dictionary<string, object> {
                             { "msg", "SetAlgorithmType failed" },
@@ -177,9 +183,9 @@ namespace MobilaxBridge
                         return false;
                     }
 
-                    _callback = new MvVolmeasure.ResultCallback(OnResult);
+                    _callback = new MvVolmeasureLib.ResultCallback(OnResult);
                     ret = _sdk.RegisterResultCallBack(_callback, IntPtr.Zero);
-                    if (ret != (int)ERROR_DEFINE.MV_VOLM_OK)
+                    if (ret != (int)ErrorCode.MV_VOLM_OK)
                     {
                         EmitEvent("error", new Dictionary<string, object> {
                             { "msg", "RegisterResultCallBack failed" },
@@ -189,7 +195,7 @@ namespace MobilaxBridge
                     }
 
                     ret = _sdk.Start();
-                    if (ret != (int)ERROR_DEFINE.MV_VOLM_OK)
+                    if (ret != (int)ErrorCode.MV_VOLM_OK)
                     {
                         EmitEvent("error", new Dictionary<string, object> {
                             { "msg", "Start failed" },
@@ -235,17 +241,17 @@ namespace MobilaxBridge
             }
         }
 
-        private static string ExtractSerial(MvVolmeasure.VOLM_DEVICE_INFO_LIST devList, int index)
+        private static string ExtractSerial(MvVolmeasureLib.VOLM_DEVICE_INFO_LIST devList, int index)
         {
             try
             {
-                var device = (MvVolmeasure.VOLM_DEVICE_INFO)Marshal.PtrToStructure(
-                    devList.pDeviceInfo[index], typeof(MvVolmeasure.VOLM_DEVICE_INFO));
-                if (device.nTLayerType == MvVolmeasure.MV_VOLM_GIGE_DEVICE)
+                var device = (MvVolmeasureLib.VOLM_DEVICE_INFO)Marshal.PtrToStructure(
+                    devList.pDeviceInfo[index], typeof(MvVolmeasureLib.VOLM_DEVICE_INFO));
+                if (device.nTLayerType == MvVolmeasureLib.MV_VOLM_GIGE_DEVICE)
                 {
                     var buffer = Marshal.UnsafeAddrOfPinnedArrayElement(device.SpecialInfo.stGigEInfo, 0);
-                    var gige = (MvVolmeasure.MV_VOLM_GIGE_NET_INFO)Marshal.PtrToStructure(
-                        buffer, typeof(MvVolmeasure.MV_VOLM_GIGE_NET_INFO));
+                    var gige = (MvVolmeasureLib.MV_VOLM_GIGE_NET_INFO)Marshal.PtrToStructure(
+                        buffer, typeof(MvVolmeasureLib.MV_VOLM_GIGE_NET_INFO));
                     return gige.chSerialNumber;
                 }
             }
@@ -254,7 +260,7 @@ namespace MobilaxBridge
         }
 
         // SDK callback — fires whenever a new result frame is ready.
-        private static void OnResult(ref VOLM_RESULT_INFO info, IntPtr pUser)
+        private static void OnResult(ref ResultInfo info, IntPtr pUser)
         {
             if (info.nVolumeFlag != 1) return;
             _frameCount++;
