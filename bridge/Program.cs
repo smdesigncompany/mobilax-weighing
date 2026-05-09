@@ -212,14 +212,17 @@ namespace MobilaxBridge
                     }
                     _algorithmType = chosenMode;
 
-                    // Force the camera into continuous (free-run) acquisition.
-                    // The MV-DB500S-V was emitting frames but never computed a
-                    // volume because TriggerMode was 'On' — it was waiting for
-                    // an external trigger (the code reader) to fire each
-                    // measurement. Disabling Trigger lets the SDK compute on
-                    // every frame.
-                    TryCameraSet("TriggerMode", 0);
-                    TryCameraSet("AcquisitionMode", 2); // Continuous (typical Hikrobot enum)
+                    // The MV-DB500S-V is designed to be triggered: setting
+                    // TriggerMode=Off (v0.5.2) stopped the trigger flow but
+                    // also stopped volume computation entirely. Camera 1
+                    // (code reader) normally fires Camera 2 via DataOutput
+                    // sending a software trigger after each barcode read.
+                    // We replicate that: keep TriggerMode On, point trigger
+                    // source at Software, then fire TriggerSoftware ourselves
+                    // on a steady cadence so volume frames keep flowing.
+                    TryCameraSet("TriggerMode", 1);
+                    TryCameraSet("TriggerSource", 7); // Software (Hikrobot enum)
+                    TryCameraSet("AcquisitionMode", 2); // Continuous
 
                     _callback = new MvVolmeasureLib.ResultCallback(OnResult);
                     ret = _sdk.RegisterResultCallBack(_callback, IntPtr.Zero);
@@ -247,6 +250,7 @@ namespace MobilaxBridge
                         { "mode", _algorithmType },
                         { "serial", serial },
                     });
+                    StartTriggerLoop();
                     return true;
                 }
                 catch (Exception ex)
@@ -262,6 +266,7 @@ namespace MobilaxBridge
             lock (_lock)
             {
                 if (!_running) return;
+                StopTriggerLoop();
                 try { _sdk?.Stop(); } catch { }
                 _running = false;
                 EmitEvent("stopped", null);
@@ -272,10 +277,65 @@ namespace MobilaxBridge
         {
             lock (_lock)
             {
+                StopTriggerLoop();
                 try { if (_running) _sdk?.Stop(); } catch { }
                 try { _sdk?.DeInit(); } catch { }
                 _sdk = null;
                 _running = false;
+            }
+        }
+
+        // Software trigger loop — fires TriggerSoftware on the camera every
+        // ~500 ms so it keeps producing volume frames. Camera 1 (code reader)
+        // normally does this via DataOutput on each barcode; we don't have
+        // barcodes so we beat the drum ourselves.
+        private static System.Threading.Timer _triggerTimer;
+        private static int _triggerInterval = 500;
+
+        private static void StartTriggerLoop()
+        {
+            if (_triggerTimer != null) return;
+            _triggerTimer = new System.Threading.Timer((_) =>
+            {
+                if (!_running) return;
+                TryCameraCommand("TriggerSoftware");
+            }, null, 200, _triggerInterval);
+            EmitEvent("info", new Dictionary<string, object> {
+                { "msg", "trigger loop started @ " + _triggerInterval + " ms" },
+            });
+        }
+
+        private static void StopTriggerLoop()
+        {
+            try { _triggerTimer?.Dispose(); } catch { }
+            _triggerTimer = null;
+        }
+
+        // Send a SetCommandValue (action / no-payload command) on the camera.
+        private static int _triggerCount = 0;
+        private static void TryCameraCommand(string key)
+        {
+            try
+            {
+                var t = _sdk.GetType();
+                var m = t.GetMethod("MV_CC_SetCommandValue", new[] { typeof(string) });
+                if (m == null) m = t.GetMethod("SetCommandValue", new[] { typeof(string) });
+                if (m == null) return;
+                var ret = (int)m.Invoke(_sdk, new object[] { key });
+                _triggerCount++;
+                if ((_triggerCount % 20) == 1) // log every ~10 s to avoid noise
+                {
+                    EmitEvent("info", new Dictionary<string, object> {
+                        { "msg", "trigger command " + key + " (#" + _triggerCount + ")" },
+                        { "ret", ret },
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                EmitEvent("info", new Dictionary<string, object> {
+                    { "msg", "TryCameraCommand " + key + " threw: " + ex.Message },
+                });
             }
         }
 
