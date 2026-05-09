@@ -191,40 +191,37 @@ export const useMeasureStore = create((set, get) => ({
     return next;
   }),
 
-  // Force-lock the current pending package with whatever live values we have.
-  // Useful when the weight never stabilises (vibration, light items) or the
-  // camera hasn't produced a frame yet — the operator validates manually.
-  validateNow: () => set((s) => {
-    if (!s.pendingId) return {};
-    const id = s.pendingId;
+  // Snapshot the current live values into a finalised measure right now.
+  // Works in any state (idle / detected / locked) — auto-generates an ID,
+  // grabs the latest weight + dims, and freezes them. The escape hatch
+  // when auto-lock can't fire (heavy vibration, partial scene, etc.).
+  freezeNow: () => set((s) => {
+    const counter = s.dailyCounter + 1;
+    saveCounter(counter);
+    const id = s.pendingId || buildPendingId(counter);
     const d = s.liveDims || {};
     const w = s.liveWeight;
-    const m = {
-      barcode: id,
-      codeSource: 'generated',
-      datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
-      weight: w ?? null,
-      len: d.len ?? null,
-      width: d.width ?? null,
-      height: d.height ?? null,
-      vol: d.vol ?? null,
-    };
-    const dimsTxt = (d.len || d.width || d.height)
-      ? ` | L${d.len ?? '?'}×l${d.width ?? '?'}×h${d.height ?? '?'} mm`
-      : '';
+    const m = buildMeasure(id, w, d);
     return {
       measure: m,
-      status: 'ready',
+      status: 'locked',
+      dailyCounter: s.pendingId ? s.dailyCounter : counter,
       receivedAt: Date.now(),
       measureCount: s.measureCount + 1,
       pendingId: null,
       armedAt: null,
+      detectedAt: null,
+      stableSince: null,
       eventLog: appendEvent(s.eventLog, {
         kind: 'measure.locked',
-        text: `Validation manuelle — ${id} | ${w ?? '—'} kg${dimsTxt}`,
+        text: `Figé manuellement — ${id} | ${w ?? '—'} kg${dimsTxtOf(d)}`,
       }),
     };
   }),
+
+  // Legacy alias (kept for backward compat with any caller that still
+  // references validateNow).
+  validateNow: () => get().freezeNow(),
 
   // Generates the next pending ID and arms the slot.
   // Records the live values at the moment of arming so we can reject

@@ -78,6 +78,11 @@ function NewPackageBarImpl() {
       </div>
       <div className="flex items-center gap-2">
         <Button variant="ghost" onClick={onSimulate}>Simuler</Button>
+        {status !== 'locked' && (
+          <Button onClick={() => useMeasureStore.getState().freezeNow()}>
+            ❄ Figer maintenant
+          </Button>
+        )}
       </div>
     </div>
   );
