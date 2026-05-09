@@ -2,7 +2,7 @@ import { memo } from 'react';
 
 function CardImpl({ children, className = '' }) {
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 ${className}`}>
+    <div className={`surface-panel rounded-lg ${className}`}>
       {children}
     </div>
   );

@@ -40,20 +40,34 @@ function NewPackageBarImpl() {
   };
 
   return (
-    <div className="flex items-center justify-between gap-3 px-5 py-4 bg-brand-50 border border-brand-100 rounded-xl">
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-medium text-brand-900 uppercase tracking-wider">
-          Préparation
+    <div className="relative flex items-center justify-between gap-4 px-6 py-4 surface-panel rounded-lg overflow-hidden">
+      <span className="absolute left-0 top-0 bottom-0 w-1 bg-accent-500" />
+      <div className="flex items-center gap-4 pl-2">
+        <span className="text-[10px] font-bold text-accent-400 uppercase tracking-[0.22em]">
+          ▸ Préparation
         </span>
+        <span className="w-px h-6 bg-steel-700/60" />
         {pendingId ? (
-          <Badge tone="info">En attente de pesée — {pendingId}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge tone="info">En attente de pesée</Badge>
+            <span className="text-sm font-mono text-accent-400 tracking-wider">
+              {pendingId}
+            </span>
+          </div>
         ) : (
-          <span className="text-sm text-slate-600">Compteur du jour : {daily}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] uppercase tracking-[0.16em] text-steel-300 font-semibold">
+              Compteur du jour
+            </span>
+            <span className="text-2xl font-mono font-bold text-white tabular-nums">
+              {String(daily).padStart(3, '0')}
+            </span>
+          </div>
         )}
       </div>
       <div className="flex items-center gap-2">
-        <Button variant="ghost" onClick={onSimulate}>Simuler (test)</Button>
-        <Button onClick={onNew}>Nouveau colis</Button>
+        <Button variant="ghost" onClick={onSimulate}>Simuler</Button>
+        <Button onClick={onNew}>+ Nouveau colis</Button>
       </div>
     </div>
   );

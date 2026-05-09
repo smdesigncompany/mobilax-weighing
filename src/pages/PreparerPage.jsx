@@ -18,15 +18,15 @@ function PreparerPageImpl() {
         <NewPackageBar />
         <LiveWeightPanel />
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="flex flex-col gap-5">
           <Card className="p-6">
             <CodeDisplay />
           </Card>
           <WeightPanel />
           <DimensionsPanel />
         </div>
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-5">
           <QRPanel />
           <PortSelector />
           <SerialCommandBar />

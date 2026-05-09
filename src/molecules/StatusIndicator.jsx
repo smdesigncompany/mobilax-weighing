@@ -2,17 +2,18 @@ import { memo } from 'react';
 import { useStatus } from '../store/measureStore';
 
 const map = {
-  idle: { label: 'En attente d\'un colis', tone: 'bg-slate-100 text-slate-600' },
-  measuring: { label: 'Mesure en cours…', tone: 'bg-amber-100 text-amber-800' },
-  ready: { label: 'Mesure validée', tone: 'bg-emerald-100 text-emerald-700' },
-  error: { label: 'Erreur', tone: 'bg-rose-100 text-rose-700' },
+  idle:      { label: "En attente d'un colis", tone: 'bg-steel-700/60 text-steel-200 border-steel-600/60', dot: 'bg-steel-400' },
+  measuring: { label: 'Mesure en cours…',       tone: 'bg-amber-500/10 text-amber-300 border-amber-500/30', dot: 'bg-amber-400 animate-pulse' },
+  ready:     { label: 'Mesure validée',         tone: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', dot: 'bg-emerald-400 shadow-[0_0_10px_2px_rgba(52,211,153,0.5)]' },
+  error:     { label: 'Erreur',                 tone: 'bg-rose-500/10 text-rose-300 border-rose-500/30', dot: 'bg-rose-400' },
 };
 
 function StatusIndicatorImpl() {
   const status = useStatus();
-  const { label, tone } = map[status] ?? map.idle;
+  const { label, tone, dot } = map[status] ?? map.idle;
   return (
-    <div className={`inline-flex px-3 py-1.5 rounded-full text-sm font-medium ${tone}`}>
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-[11px] font-semibold uppercase tracking-[0.14em] ${tone}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
       {label}
     </div>
   );

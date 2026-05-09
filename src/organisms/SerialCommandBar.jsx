@@ -25,9 +25,14 @@ function SerialCommandBarImpl() {
   };
 
   return (
-    <Card className="p-4">
-      <Label>Tester la balance — envoyer une commande</Label>
-      <div className="flex flex-wrap gap-2 mt-3">
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-3 pb-3 border-b border-steel-700/60">
+        <Label>Commandes balance</Label>
+        <span className="text-[10px] uppercase tracking-[0.16em] text-steel-400 font-mono">
+          TX manuel
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-3">
         {PRESETS.map((p) => (
           <Button key={p.label} variant="ghost" onClick={() => send(p.cmd)}>{p.label}</Button>
         ))}
@@ -37,10 +42,12 @@ function SerialCommandBarImpl() {
           type="text"
           value={custom}
           onChange={(e) => setCustom(e.target.value)}
-          placeholder="Commande (ex: P, ou \\r\\n pour CR/LF)"
-          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono"
+          placeholder="ex: P, ou \r\n pour CR/LF"
+          className="flex-1 px-3 py-2 bg-steel-900 border border-steel-600 focus:border-accent-500 focus:outline-none rounded-md text-sm font-mono text-steel-100"
         />
-        <Button onClick={() => send(custom.replace(/\\r/g, '\r').replace(/\\n/g, '\n'))}>Envoyer</Button>
+        <Button onClick={() => send(custom.replace(/\\r/g, '\r').replace(/\\n/g, '\n'))}>
+          Envoyer
+        </Button>
       </div>
     </Card>
   );

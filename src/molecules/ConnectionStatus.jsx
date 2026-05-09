@@ -11,7 +11,7 @@ const labels = {
 function ConnectionStatusImpl() {
   const state = useConnection();
   return (
-    <div className="flex items-center gap-2 text-sm text-slate-600">
+    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-steel-200 font-semibold">
       <StatusDot state={state} />
       <span>{labels[state] ?? state}</span>
     </div>
