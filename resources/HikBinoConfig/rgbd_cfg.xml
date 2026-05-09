@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ArithConfig>
+    <STEREO_VM>
+        <Input>
+            <Camera_3d p2="0" fx="998.859" img_h="1024" k3="0" cx="735.519" cy="512.152" p1="0" k2="0" k1="0" img_w="1408" fy="998.859"/>
+            <Camera_2d p2="-0.000334938" fx="980.996" img_h="1024" k3="-0.00331229" cx="732.171" cy="557.27" p1="-8.48566e-05" k2="-0.0589455" k1="0.0537246" img_w="1408" fy="981.047"/>
+            <Depth2rgb tz="0.2420433759689331" r11="0.999996" r12="0.00145326" r02="-0.0031709" r00="0.999992" r01="-0.00230694" r21="-0.00146058" r10="0.00231156" r22="0.999994" tx="31.01603317260742" r20="0.00316754" ty="0.05124461278319359"/>
+            <DatumPlaneRoi x3="276" y0="281" x2="501" pnt_num="4" y2="453" x0="276" x1="501" y3="453" y1="281"/>
+            <PhysicalSpaceOffset right_offset="1000" top_offset="-1000" bottom_offset="999" left_offset="-1000"/>
+            <DepthImageMode Mode="3"/>
+            <MeasureRoi pnt_num="4" x0="316.61762619018555" y0="323.56063842773437" x1="445.01555252075195" y1="328.67330932617187" x2="448.6631965637207" y2="422.89300537109375" x3="324.64248085021973" y3="417.78030395507812"/>
+        </Input>
+        <PARAM>
+            <Param index="1" help="包裹最小高度（mm）" value="40" name="PKG_MIN_HEIGHT" max="2000" help_english="Min package height(mm)" type="int" min="1"/>
+            <Param index="2" help="包裹最大高度(mm)" value="1600" name="PKG_MAX_HEIGHT" max="20000" help_english="Max package height(mm)" type="int" min="1"/>
+            <Param index="40" help="强制差分使能" value="0" name="ENFORCE_DIFF_ENABLE" max="1" help_english="Disable hand detection" type="int" min="0"/>
+            <Param index="48" help="输出积分体积" value="0" name="VOLUME_OUTPUT_MODE" max="1" help_english="Use Integral volume" type="int" min="0"/>
+            <Param index="3" help="包裹的最小blob面积" value="1000" name="PKG_MIN_BLOB_AREA" max="100000" help_english="The min blob area of the package" type="int" min="1"/>
+            <Param index="7" help="包裹平面波动度" value="16" name="PLANE_VARIANCE" max="200" help_english="Package plane fluctuation" type="int" min="1"/>
+            <Param index="9" help="投影栅格大小" value="2" name="GRID_SIZE" max="100" help_english="Projected grid size" type="int" min="1"/>
+            <!--<Param min="-999" help="高度补偿值" index="12" help_english="Height compensation value" name="DELTA_HEIGHT" value="0" max="999" type="int"/>-->
+            <Param index="14" help="矩形度阈值" value="90" name="RECTANGULARITY_THR" max="100" help_english="Threshold of rectangularity" type="int" min="1"/>
+            <!--<Param min="0" help="开启细缝融合使能" index="28" help_english="Enable the fine seam fusion function" name="OPEN_MERGE_CRAKE_ENABLE" value="1" max="1" type="int"/>-->
+            <Param index="29" help="灰度差分阈值" value="255" name="GRAY_VALUE_DIFF_THD" max="255" help_english="Gray difference threshold value " type="int" min="0"/>
+            <Param index="41" help="背景更新使能" value="0" name="BG_UPDATE_ENABLE" max="1" help_english="Bgd Update Enable" type="int" min="0"/>
+            <Param index="30" help="点云裁剪矩形度" value="60" name="CLOUD_TRIM_RECT_RATIO" max="100" help_english="Point cloud clipping rectangle" type="int" min="0"/>
+            <Param index="31" help="去手检测使能" value="1" name="HAND_DETECT_ENABLE" max="1" help_english="Disable hand detection" type="int" min="0"/>
+            <!--<Param min="0" help="内参修正使能开关" index="20" help_english="Enable intrins correction" name="FOCAL_UPDATE_ENABLE" value="0" max="1" type="int"/>-->
+            <!--<Param min="10" help="相机到基准面距离" index="16" help_english="The max distance from bench to camera(mm)" name="CAM2BENCH_MAX_DIS" value="1661" max="2000" type="int"/>-->
+            <Param index="32" help="强制灰度图边缘精修使能" value="0" name="EDGE_REFINE_ENABLE" max="1" help_english="Enable edge refined" type="int" min="0"/>
+            <Param index="33" help="顶层平面点数比例" value="90" name="TOP_PLANE_PNT_RAT" max="100" help_english="Point ratio of the top plane" type="int" min="0"/>
+            <Param index="34" help="实例分割使能" value="1" name="INSTANCE_SEG_ENABLE" max="1" help_english="Enable instance division" type="int" min="0"/>
+            <Param index="37" help="体积测量模式" value="2" name="MEASURE_MODE" max="4" help_english="Volume Measure Mode" type="int" min="0"/>
+            <Param index="38" help="深度图去噪使能" value="1" name="NOISE_REMOVE_ENABLE" max="1" help_english="Noise Remove Enable" type="int" min="0"/>
+            <Param index="39" help="孔洞填充使能" value="1" name="HOLE_FILL_ENABLE" max="1" help_english="Hole Fill Enable" type="int" min="0"/>
+            <Param index="49" help="稳定帧数" value="1" name="STABLE_FRAME_NUM" max="10" help_english="Stable Frame Num" type="int" min="0"/>
+            <Param index="50" help="稳定结果融合使能" value="1" name="FUSION_ENABLE" max="1" help_english="STABLE_FUSION_ENABLE" type="int" min="0"/>
+            <Param index="51" help="稳定长度偏差(mm)" value="20" name="ERROR_LENGTH" max="200" help_english="STABLE_LENGTH(mm)" type="int" min="0"/>
+            <Param index="52" help="稳定宽度偏差(mm)" value="20" name="ERROR_WIDTH" max="200" help_english="STABLE_WIDTH(mm)" type="int" min="0"/>
+            <Param index="53" help="稳定高度偏差(mm)" value="20" name="ERROR_HEIGHT" max="200" help_english="STABLE_HEIGHT(mm)" type="int" min="0"/>
+            <Param index="54" help="稳定中心偏差(pixel)" value="20" name="ERROR_CENTER" max="200" help_english="STABLE_CENTER" type="int" min="0"/>
+            <Param index="55" help="稳定角度偏差" value="5" name="ERROR_ANGLE" max="30" help_english="STABLE_ANGLE" type="int" min="0"/>
+            <Param index="56" help="稳定IoU阈值" value="80" name="IOU_THRESHOLD" max="100" help_english="STABLE_IOU" type="int" min="0"/>
+            <Param index="57" help="保边滤波使能" value="1" name="EDGE_FILTER_ENABLE" max="1" help_english="EDGE_FILTER_ENABLE" type="int" min="0"/>
+            <Param index="58" help="空域标准差" value="1000" name="FILTER_STD_DEV" max="100000" help_english="FILTER_STD_DEV" type="int" min="0"/>
+            <Param index="59" help="空域衰减" value="100" name="FILTER_DECAY" max="100000" help_english="FILTER_DECAY" type="int" min="0"/>
+        </PARAM>
+    </STEREO_VM>
+</ArithConfig>

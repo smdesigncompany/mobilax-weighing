@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { setupAutoUpdater } = require('./updater');
+const { setupBridge } = require('./bridge');
 
 // Buffered serial events emitted before the renderer is ready.
 // Flushed when the renderer calls window.mobilax.flushSerial().
@@ -84,6 +85,25 @@ function createWindow() {
     } catch (e) {
       return { ok: false, error: e.message };
     }
+  });
+
+  // Hikrobot camera bridge — spawned only on Windows where the SDK exists.
+  // Mirrors the serial buffer pattern so the renderer can drain on startup.
+  const bridgeBuffer = [];
+  const bridgeEmit = (evt) => {
+    bridgeBuffer.push(evt);
+    if (bridgeBuffer.length > 200) bridgeBuffer.shift();
+    if (!win.isDestroyed()) win.webContents.send('bridge:event', evt);
+  };
+  const bridgeHandle = setupBridge({
+    emit: bridgeEmit,
+    app,
+    mode: Number(process.env.MOBILAX_CAM_MODE) || 14,
+  });
+  ipcMain.handle('bridge:flush', () => bridgeBuffer.splice(0));
+  ipcMain.handle('bridge:write', (_e, cmd) => {
+    if (!bridgeHandle?.write) return { ok: false, error: 'no bridge handle' };
+    return { ok: bridgeHandle.write(String(cmd)) };
   });
 
   // Reconnect on a different COM port at runtime. The previous handle's

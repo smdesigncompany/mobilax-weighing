@@ -57,7 +57,19 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "extraResources": [
+        {
+          "from": "bridge/dist",
+          "to": "bridge",
+          "filter": ["**/*"]
+        },
+        {
+          "from": "resources/HikBinoConfig",
+          "to": "HikBinoConfig",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "mac": {
       "target": [

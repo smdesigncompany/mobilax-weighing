@@ -14,6 +14,12 @@ const KIND_STYLES = {
   'serial.sent':    { tone: 'text-indigo-300',   pill: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30',    label: 'TX' },
   'response.ok':    { tone: 'text-emerald-300',  pill: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', label: 'Réponse' },
   'response.error': { tone: 'text-rose-300',     pill: 'bg-rose-500/10 text-rose-300 border-rose-500/30',          label: 'Erreur' },
+  'bridge.init':    { tone: 'text-cyan-300',     pill: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',          label: 'Caméra' },
+  'bridge.volume':  { tone: 'text-emerald-300',  pill: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', label: 'Volume' },
+  'bridge.error':   { tone: 'text-rose-300',     pill: 'bg-rose-500/10 text-rose-300 border-rose-500/30',          label: 'Caméra' },
+  'bridge.stderr':  { tone: 'text-amber-300',    pill: 'bg-amber-500/10 text-amber-300 border-amber-500/30',       label: 'Caméra' },
+  'bridge.exit':    { tone: 'text-rose-300',     pill: 'bg-rose-500/10 text-rose-300 border-rose-500/30',          label: 'Caméra' },
+  'bridge.raw':     { tone: 'text-steel-100',    pill: 'bg-steel-700/60 text-steel-200 border-steel-600/60',       label: 'Caméra' },
 };
 
 function ActivityLogImpl() {

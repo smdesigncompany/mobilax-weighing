@@ -25,6 +25,20 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Setup .NET (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build MobilaxBridge (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          dotnet build bridge\MobilaxBridge.csproj -c Release -o bridge\dist
+          Write-Host "--- bridge\dist ---"
+          Get-ChildItem bridge\dist | Format-Table Name, Length
+
       - name: Install dependencies
         run: npm ci
 

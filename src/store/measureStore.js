@@ -48,6 +48,8 @@ export const useMeasureStore = create((set, get) => ({
 
   liveWeight: null,
   liveStable: false,
+  liveDims: null, // { len, width, height, vol } from the camera bridge
+  setLiveDims: (dims) => set({ liveDims: dims }),
   serialStatus: 'unknown', // 'open' | 'error' | 'closed' | 'unknown'
   serialError: null,
   serialPath: null,
@@ -60,22 +62,30 @@ export const useMeasureStore = create((set, get) => ({
   setLiveWeight: ({ weight, stable }) => set((s) => {
     const next = { liveWeight: weight, liveStable: !!stable };
     // When a stable weight lands while a pending ID is armed, lock it as the current measure.
+    // Pull dimensions from the camera bridge if a recent volume frame is present.
     if (stable && s.pendingId && weight != null) {
       const id = s.pendingId;
+      const d = s.liveDims || {};
       next.measure = {
         barcode: id,
         codeSource: 'generated',
         datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
         weight,
-        len: null, width: null, height: null, vol: null,
+        len: d.len ?? null,
+        width: d.width ?? null,
+        height: d.height ?? null,
+        vol: d.vol ?? null,
       };
       next.status = 'ready';
       next.receivedAt = Date.now();
       next.measureCount = s.measureCount + 1;
       next.pendingId = null;
+      const dimsTxt = (d.len || d.width || d.height)
+        ? ` | L${d.len ?? '?'}×l${d.width ?? '?'}×h${d.height ?? '?'} mm`
+        : '';
       next.eventLog = appendEvent(s.eventLog, {
         kind: 'measure.locked',
-        text: `Auto-verrouillage — ${id} | ${weight} kg (poids stable)`,
+        text: `Auto-verrouillage — ${id} | ${weight} kg${dimsTxt} (poids stable)`,
       });
     }
     return next;
@@ -127,6 +137,7 @@ const selBarcode = (s) => s.measure?.barcode ?? '';
 const selCodeSource = (s) => s.measure?.codeSource ?? null;
 const selLiveWeight = (s) => s.liveWeight;
 const selLiveStable = (s) => s.liveStable;
+const selLiveDims = (s) => s.liveDims;
 const selSerialStatus = (s) => ({ status: s.serialStatus, error: s.serialError, path: s.serialPath });
 const selEventLog = (s) => s.eventLog;
 const selPendingId = (s) => s.pendingId;
@@ -142,6 +153,7 @@ export const useBarcode = () => useMeasureStore(selBarcode);
 export const useCodeSource = () => useMeasureStore(selCodeSource);
 export const useLiveWeight = () => useMeasureStore(selLiveWeight);
 export const useLiveStable = () => useMeasureStore(selLiveStable);
+export const useLiveDims = () => useMeasureStore(selLiveDims, shallow);
 export const useSerialStatus = () => useMeasureStore(selSerialStatus, shallow);
 export const useEventLog = () => useMeasureStore(selEventLog);
 export const usePendingId = () => useMeasureStore(selPendingId);

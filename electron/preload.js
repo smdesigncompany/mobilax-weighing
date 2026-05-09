@@ -15,4 +15,12 @@ contextBridge.exposeInMainWorld('mobilax', {
   sendSerial: (cmd) => ipcRenderer.invoke('serial:send', cmd),
   listSerialPorts: () => ipcRenderer.invoke('serial:list'),
   reconnectSerial: (cfg) => ipcRenderer.invoke('serial:reconnect', cfg),
+
+  onBridgeEvent: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on('bridge:event', handler);
+    return () => ipcRenderer.removeListener('bridge:event', handler);
+  },
+  flushBridge: () => ipcRenderer.invoke('bridge:flush'),
+  sendBridge: (cmd) => ipcRenderer.invoke('bridge:write', cmd),
 });
