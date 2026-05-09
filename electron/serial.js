@@ -6,8 +6,11 @@
 const { SerialPort } = require('serialport');
 
 const FRAME_DELIMITER = /\r?\n/;
-const STABLE_WINDOW_MS = 600;
-const STABLE_TOLERANCE = 0.01;
+const STABLE_WINDOW_MS = 500;
+// Industrial scales drift more than the 10g window we used to enforce —
+// 50g is the typical 'stable for shipping' tolerance and matches what
+// most carriers / WMS systems expect.
+const STABLE_TOLERANCE = 0.05;
 
 // Common wake-up commands many request/response balances respond to.
 // Sent in order at intervals after the port opens, until raw data shows up.
