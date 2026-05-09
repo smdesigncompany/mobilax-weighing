@@ -70,10 +70,12 @@ function makeDispatcher() {
           pushEvent({ kind: 'bridge.init', text: 'stopped' });
           break;
         case 'error': {
+          const hint = hikrobotHint(p.ret);
           const extras = [
             p.ret != null ? `ret=0x${(p.ret >>> 0).toString(16)}` : null,
             p.mode != null ? `mode=${p.mode}` : null,
             p.tried ? `tried=${p.tried}` : null,
+            hint ? `→ ${hint}` : null,
           ].filter(Boolean).join(' ');
           pushEvent({ kind: 'bridge.error', text: `${p.msg || 'error'} ${extras}`.trim() });
           break;
@@ -95,6 +97,26 @@ function makeDispatcher() {
 
 export function stopBridgeBridge() {
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+}
+
+// Translate the most common Hikrobot SDK return codes into French operator
+// hints. Anything else falls through unchanged so the raw code is still in
+// the activity log next to the hint.
+function hikrobotHint(ret) {
+  if (ret == null) return null;
+  const code = ret >>> 0;
+  switch (code) {
+    case 0x80000203: return 'caméra occupée par un autre process (DataOutput / 3DMVS ?)';
+    case 0x80000202: return 'caméra non connectée / réseau';
+    case 0x80000201: return 'calibration requise';
+    case 0x80000200: return 'mémoire insuffisante';
+    case 0x80011001: return 'mode caméra non supporté';
+    case 0x8001100c: return 'fichier de configuration incorrect / manquant';
+    case 0x8001100b: return 'DLL native manquante';
+    case 0x80011007: return 'précondition non remplie (autre Start ?)';
+    case 0x80011000: return 'handle invalide';
+    default: return null;
+  }
 }
 
 export async function sendBridge(cmd) {

@@ -8,8 +8,6 @@ import { NewPackageBar } from '../organisms/NewPackageBar';
 import { ActivityLog } from '../organisms/ActivityLog';
 import { SerialCommandBar } from '../organisms/SerialCommandBar';
 import { PortSelector } from '../organisms/PortSelector';
-import { CodeDisplay } from '../molecules/CodeDisplay';
-import { Card } from '../atoms/Card';
 
 function PreparerPageImpl() {
   return (
@@ -20,9 +18,6 @@ function PreparerPageImpl() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="flex flex-col gap-5">
-          <Card className="p-6">
-            <CodeDisplay />
-          </Card>
           <WeightPanel />
           <DimensionsPanel />
         </div>

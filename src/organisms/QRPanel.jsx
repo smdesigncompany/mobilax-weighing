@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import { Card } from '../atoms/Card';
 import { Label } from '../atoms/Label';
 import { Badge } from '../atoms/Badge';
-import { useMeasureStore } from '../store/measureStore';
+import { useMeasureStore, useBarcode, useCodeSource } from '../store/measureStore';
 import { buildQRPayload, renderQRDataURL } from '../services/qrService';
 
 // Subscribes via a derived selector so the QR re-renders only when the
@@ -16,6 +16,8 @@ const selQRSeed = (s) => {
 function QRPanelImpl() {
   const seed = useMeasureStore(selQRSeed);
   const [src, setSrc] = useState(null);
+  const barcode = useBarcode();
+  const source = useCodeSource();
 
   useEffect(() => {
     let cancelled = false;
@@ -36,16 +38,27 @@ function QRPanelImpl() {
           {src ? 'Prêt' : 'En attente'}
         </Badge>
       </div>
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4">
         {src ? (
-          <div className="relative p-4 bg-white rounded-md shadow-[0_0_40px_-10px_rgba(34,211,238,0.4)]">
-            <img src={src} alt="QR code colis" className="w-[320px] h-[320px] block" />
-            {/* Industrial corner brackets */}
-            <span className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-accent-500" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-accent-500" />
-            <span className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-accent-500" />
-            <span className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-accent-500" />
-          </div>
+          <>
+            <div className="relative p-4 bg-white rounded-md shadow-[0_0_40px_-10px_rgba(34,211,238,0.4)]">
+              <img src={src} alt="QR code colis" className="w-[300px] h-[300px] block" />
+              <span className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-accent-500" />
+              <span className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-accent-500" />
+              <span className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-accent-500" />
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-accent-500" />
+            </div>
+            {barcode && (
+              <div className="flex items-center gap-2 text-center">
+                <span className="text-xs font-mono text-steel-300 tracking-wider">{barcode}</span>
+                {source === 'generated' ? (
+                  <span className="text-[9px] uppercase tracking-[0.12em] text-amber-400 font-semibold">généré</span>
+                ) : source === 'scanned' ? (
+                  <span className="text-[9px] uppercase tracking-[0.12em] text-emerald-400 font-semibold">scanné</span>
+                ) : null}
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center select-none">
             <div className="mx-auto w-32 h-32 rounded-md border border-dashed border-steel-600 flex items-center justify-center mb-4">

@@ -49,6 +49,12 @@ export const useMeasureStore = create((set, get) => ({
   liveWeight: null,
   liveStable: false,
   liveDims: null, // { len, width, height, vol } from the camera bridge
+  // Snapshots taken when newPackage() arms a pending ID. Auto-lock requires
+  // the live values to have moved away from these snapshots so we don't
+  // record the previous package's measurement against a fresh ID.
+  armedAt: null,
+  weightAtArm: null,
+  dimsAtArm: null,
   setLiveDims: (dims) => set({ liveDims: dims }),
   serialStatus: 'unknown', // 'open' | 'error' | 'closed' | 'unknown'
   serialError: null,
@@ -61,33 +67,53 @@ export const useMeasureStore = create((set, get) => ({
   }),
   setLiveWeight: ({ weight, stable }) => set((s) => {
     const next = { liveWeight: weight, liveStable: !!stable };
-    // When a stable weight lands while a pending ID is armed, lock it as the current measure.
-    // Pull dimensions from the camera bridge if a recent volume frame is present.
-    if (stable && s.pendingId && weight != null) {
-      const id = s.pendingId;
-      const d = s.liveDims || {};
-      next.measure = {
-        barcode: id,
-        codeSource: 'generated',
-        datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
-        weight,
-        len: d.len ?? null,
-        width: d.width ?? null,
-        height: d.height ?? null,
-        vol: d.vol ?? null,
-      };
-      next.status = 'ready';
-      next.receivedAt = Date.now();
-      next.measureCount = s.measureCount + 1;
-      next.pendingId = null;
-      const dimsTxt = (d.len || d.width || d.height)
-        ? ` | L${d.len ?? '?'}×l${d.width ?? '?'}×h${d.height ?? '?'} mm`
-        : '';
-      next.eventLog = appendEvent(s.eventLog, {
-        kind: 'measure.locked',
-        text: `Auto-verrouillage — ${id} | ${weight} kg${dimsTxt} (poids stable)`,
-      });
-    }
+    // Auto-lock guards against stale data:
+    //   1. A pending ID must be armed
+    //   2. Weight must be stable
+    //   3. We require either fresh camera dims OR a weight change ≥ 50g
+    //      since arming, so the previous package's values can't be locked
+    //      against a brand new ID.
+    //   4. A 1.5s grace window lets the operator place the package before
+    //      auto-lock fires.
+    if (!stable || !s.pendingId || weight == null) return next;
+
+    const elapsed = s.armedAt ? Date.now() - s.armedAt : Infinity;
+    if (elapsed < 1500) return next;
+
+    const armW = s.weightAtArm;
+    const weightChanged = armW == null || Math.abs(weight - armW) >= 0.05;
+    const dimsArrived = s.liveDims && (
+      !s.dimsAtArm
+      || s.liveDims.len !== s.dimsAtArm.len
+      || s.liveDims.width !== s.dimsAtArm.width
+      || s.liveDims.height !== s.dimsAtArm.height
+    );
+    if (!weightChanged && !dimsArrived) return next;
+
+    const id = s.pendingId;
+    const d = s.liveDims || {};
+    next.measure = {
+      barcode: id,
+      codeSource: 'generated',
+      datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+      weight,
+      len: d.len ?? null,
+      width: d.width ?? null,
+      height: d.height ?? null,
+      vol: d.vol ?? null,
+    };
+    next.status = 'ready';
+    next.receivedAt = Date.now();
+    next.measureCount = s.measureCount + 1;
+    next.pendingId = null;
+    next.armedAt = null;
+    const dimsTxt = (d.len || d.width || d.height)
+      ? ` | L${d.len ?? '?'}×l${d.width ?? '?'}×h${d.height ?? '?'} mm`
+      : '';
+    next.eventLog = appendEvent(s.eventLog, {
+      kind: 'measure.locked',
+      text: `Auto-verrouillage — ${id} | ${weight} kg${dimsTxt} (poids stable)`,
+    });
     return next;
   }),
 
@@ -118,6 +144,7 @@ export const useMeasureStore = create((set, get) => ({
       receivedAt: Date.now(),
       measureCount: s.measureCount + 1,
       pendingId: null,
+      armedAt: null,
       eventLog: appendEvent(s.eventLog, {
         kind: 'measure.locked',
         text: `Validation manuelle — ${id} | ${w ?? '—'} kg${dimsTxt}`,
@@ -126,6 +153,9 @@ export const useMeasureStore = create((set, get) => ({
   }),
 
   // Generates the next pending ID and arms the slot.
+  // Records the live values at the moment of arming so we can reject
+  // stale auto-locks (next package picking up the previous package's
+  // weight + dimensions because nothing changed on the bus yet).
   newPackage: () => set((s) => {
     const next = s.dailyCounter + 1;
     saveCounter(next);
@@ -134,6 +164,12 @@ export const useMeasureStore = create((set, get) => ({
       dailyCounter: next,
       pendingId: id,
       status: 'measuring',
+      armedAt: Date.now(),
+      weightAtArm: s.liveWeight,
+      dimsAtArm: s.liveDims,
+      // Visually clear the camera dims; the next bridge frame (~150ms)
+      // refills them so the operator sees that a new measurement landed.
+      liveDims: null,
       eventLog: appendEvent(s.eventLog, { kind: 'user.new', text: `Nouveau colis armé — ${id}` }),
     };
   }),
@@ -152,6 +188,7 @@ export const useMeasureStore = create((set, get) => ({
       receivedAt: Date.now(),
       measureCount: s.measureCount + 1,
       pendingId: null,
+      armedAt: null,
       eventLog: appendEvent(s.eventLog, {
         kind: 'measure.locked',
         text: `Mesure verrouillée (${source}) — ${m.barcode} | ${m.weight ?? '—'} kg${dimsTxt}`,
@@ -176,6 +213,24 @@ const selSerialStatus = (s) => ({ status: s.serialStatus, error: s.serialError, 
 const selEventLog = (s) => s.eventLog;
 const selPendingId = (s) => s.pendingId;
 const selDailyCounter = (s) => s.dailyCounter;
+// "Fresh" means: a pending ID is armed AND either weight or dims have moved
+// since arming. Used by the UI to encourage the operator to wait for new data.
+const selFreshness = (s) => {
+  if (!s.pendingId || !s.armedAt) return 'idle';
+  const elapsed = Date.now() - s.armedAt;
+  const armW = s.weightAtArm;
+  const w = s.liveWeight;
+  const weightChanged = (armW != null && w != null) && Math.abs(w - armW) >= 0.05;
+  const dimsArrived = s.liveDims && (
+    !s.dimsAtArm
+    || s.liveDims.len !== s.dimsAtArm.len
+    || s.liveDims.width !== s.dimsAtArm.width
+    || s.liveDims.height !== s.dimsAtArm.height
+  );
+  if (weightChanged || dimsArrived) return 'fresh';
+  if (elapsed > 1500) return 'stale-but-armed';
+  return 'awaiting';
+};
 const selWeight = (s) => s.measure?.weight ?? null;
 const selDims = (s) => ({ len: s.measure?.len ?? null, width: s.measure?.width ?? null, height: s.measure?.height ?? null });
 const selVol = (s) => s.measure?.vol ?? null;
@@ -192,6 +247,7 @@ export const useSerialStatus = () => useMeasureStore(selSerialStatus, shallow);
 export const useEventLog = () => useMeasureStore(selEventLog);
 export const usePendingId = () => useMeasureStore(selPendingId);
 export const useDailyCounter = () => useMeasureStore(selDailyCounter);
+export const useFreshness = () => useMeasureStore(selFreshness);
 export const useWeight = () => useMeasureStore(selWeight);
 export const useDims = () => useMeasureStore(selDims, shallow);
 export const useVol = () => useMeasureStore(selVol);

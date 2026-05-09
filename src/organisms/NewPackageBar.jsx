@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Button } from '../atoms/Button';
 import { Badge } from '../atoms/Badge';
-import { useMeasureStore, usePendingId, useDailyCounter } from '../store/measureStore';
+import { useMeasureStore, usePendingId, useDailyCounter, useFreshness } from '../store/measureStore';
 import { hasApiConfigured } from '../services/config';
 import { apiFetch } from '../services/socket';
 
@@ -11,6 +11,7 @@ import { apiFetch } from '../services/socket';
 function NewPackageBarImpl() {
   const pendingId = usePendingId();
   const daily = useDailyCounter();
+  const freshness = useFreshness();
 
   const onNew = () => useMeasureStore.getState().newPackage();
   const onValidate = () => useMeasureStore.getState().validateNow();
@@ -50,7 +51,13 @@ function NewPackageBarImpl() {
         <span className="w-px h-6 bg-steel-700/60" />
         {pendingId ? (
           <div className="flex items-center gap-2">
-            <Badge tone="info">En attente de pesée</Badge>
+            {freshness === 'fresh' ? (
+              <Badge tone="success">✓ Nouvelles données</Badge>
+            ) : freshness === 'stale-but-armed' ? (
+              <Badge tone="warning">⚠ En attente nouvelles mesures</Badge>
+            ) : (
+              <Badge tone="info">⏳ Pose le colis…</Badge>
+            )}
             <span className="text-sm font-mono text-accent-400 tracking-wider">
               {pendingId}
             </span>
