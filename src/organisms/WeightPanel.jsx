@@ -3,21 +3,25 @@ import { Card } from '../atoms/Card';
 import { Label } from '../atoms/Label';
 import { Value } from '../atoms/Value';
 import { Badge } from '../atoms/Badge';
-import { useWeight } from '../store/measureStore';
+import { useWeight, useStatus } from '../store/measureStore';
 
 function WeightPanelImpl() {
   const weight = useWeight();
+  const status = useStatus();
   const has = weight != null;
+  const relocking = status === 'relocking';
   return (
-    <Card className="p-6 relative overflow-hidden">
+    <Card className={`p-6 relative overflow-hidden transition-opacity ${relocking ? 'opacity-50' : ''}`}>
       <div className="flex items-start justify-between mb-3">
         <Label>Poids verrouillé</Label>
-        <Badge tone={has ? 'info' : 'neutral'}>{has ? 'Mesuré' : 'Vide'}</Badge>
+        <Badge tone={relocking ? 'warning' : has ? 'info' : 'neutral'}>
+          {relocking ? '↻ Mise à jour…' : has ? 'Mesuré' : 'Vide'}
+        </Badge>
       </div>
       <Value
         unit="kg"
         size="xl"
-        tone={has ? 'accent' : 'dim'}
+        tone={!has ? 'dim' : relocking ? 'dim' : 'accent'}
       >
         {has ? weight.toFixed(2) : '—'}
       </Value>

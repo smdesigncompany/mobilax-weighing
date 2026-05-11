@@ -81,14 +81,20 @@ function buildPendingId(n) {
 // detected  → weight crossed the placement threshold; waiting for stability
 //             and a volume reading from the camera
 // locked    → measurement frozen with current values + auto-generated ID
-//             (operator removes the package to go back to idle)
+// relocking → was locked, then a significant weight change was detected
+//             (swap / partial lift). The previous measure (and QR) stays
+//             visible while we wait for a new stable reading to re-lock.
 const PLACE_THRESHOLD_KG = 0.1;     // weight above this = package placed
 const REMOVE_THRESHOLD_KG = 0.05;   // weight below this = package removed
 const MIN_STABLE_MS = 700;          // weight must hold this long before lock
+// Fraction of the locked weight below which we treat the change as a swap
+// (drop to <50% of the locked value → relocking). Catches quick swaps that
+// don't drop weight all the way to zero.
+const RELOCK_DROP_RATIO = 0.5;
 
 export const useMeasureStore = create((set, get) => ({
   measure: null,
-  status: 'idle',          // 'idle' | 'detected' | 'locked'
+  status: 'idle',          // 'idle' | 'detected' | 'locked' | 'relocking'
   connection: 'disconnected',
   error: null,
   receivedAt: null,
@@ -111,17 +117,28 @@ export const useMeasureStore = create((set, get) => ({
   detectedAt: null,
   stableSince: null,
   setLiveDims: (dims) => set((s) => {
+    // The camera also emits "empty scene" frames when the package is
+    // removed (all dims null or zero). Ignore them so they don't pollute
+    // the median window — otherwise a quick swap to a different-size box
+    // ends up with mixed-history dims, and the lock picks a wrong value.
+    const isEmpty = !dims || (
+      (dims.len == null || dims.len === 0) &&
+      (dims.width == null || dims.width === 0) &&
+      (dims.height == null || dims.height === 0)
+    );
+    if (isEmpty) return {};
+
     const hist = [...s.liveDimsHistory, dims];
     const trimmed = hist.length > 5 ? hist.slice(-5) : hist;
     const next = { liveDims: dims, liveDimsHistory: trimmed };
 
-    // If we were waiting to lock (status=detected, weight stable, weight
-    // above threshold) and dims just arrived, fire the lock now so the
-    // measurement includes the camera reading.
+    // If we were waiting to lock (status=detected/relocking, weight stable,
+    // weight above threshold) and dims just arrived, fire the lock now so
+    // the measurement includes the camera reading.
     const w = s.liveWeight;
     const above = w != null && w >= PLACE_THRESHOLD_KG;
     const wantsLock = s.liveStable && above
-      && (s.status === 'detected' || s.pendingId);
+      && (s.status === 'detected' || s.status === 'relocking' || s.pendingId);
     if (wantsLock) {
       let id, counter = s.dailyCounter;
       if (s.pendingId) {
@@ -164,22 +181,46 @@ export const useMeasureStore = create((set, get) => ({
 
     const above = weight >= PLACE_THRESHOLD_KG;
     const below = weight <= REMOVE_THRESHOLD_KG;
+    const lockedWeight = s.measure?.weight;
+    const significantDrop = lockedWeight != null && weight < lockedWeight * RELOCK_DROP_RATIO;
 
-    // ─── Reset back to idle once the package is removed ──────────────
-    if (s.status === 'locked' && below) {
+    // ─── Full removal from locked/relocking → back to idle ──────────
+    // Keep `measure` so the QR stays scannable until a new lock replaces
+    // it. Keep `liveDims` (last known dims) as a fallback so a same-size
+    // next carton — for which the camera won't re-emit on identical scene
+    // — can still auto-lock. Clear the history so the median doesn't keep
+    // averaging old frames once new ones arrive for a different-size box.
+    if ((s.status === 'locked' || s.status === 'relocking') && below) {
       next.status = 'idle';
       next.detectedAt = null;
       next.stableSince = null;
-      next.liveDims = null;
       next.liveDimsHistory = [];
       next.eventLog = appendEvent(s.eventLog, {
         kind: 'user.new',
-        text: `Réinitialisation — colis retiré (${weight.toFixed(2)} kg)`,
+        text: `Colis retiré (${weight.toFixed(2)} kg) — QR conservé`,
       });
       return next;
     }
 
-    // While locked, ignore further weight changes.
+    // ─── Swap detected: significant drop while locked → relocking ──
+    // The previous measure (and its QR) stays visible. We wait for a
+    // new stable reading to re-lock with fresh values. Clear the dims
+    // history so the new lock isn't biased by the previous package's
+    // frames; liveDims stays as fallback for same-size cartons.
+    if (s.status === 'locked' && significantDrop) {
+      next.status = 'relocking';
+      next.detectedAt = now;
+      next.stableSince = null;
+      next.liveDimsHistory = [];
+      const dropPct = Math.round((1 - weight / lockedWeight) * 100);
+      next.eventLog = appendEvent(s.eventLog, {
+        kind: 'user.new',
+        text: `Changement détecté (-${dropPct}% : ${weight.toFixed(2)} kg) — attente nouvelle mesure`,
+      });
+      return next;
+    }
+
+    // While locked with no significant change, ignore weight updates.
     if (s.status === 'locked') return next;
 
     // ─── Detect placement (visual feedback) ──────────────────────────
@@ -203,13 +244,14 @@ export const useMeasureStore = create((set, get) => ({
 
     // ─── Lock condition ─────────────────────────────────────────────
     // The bridge's STABLE_WINDOW_MS already enforces a dwell window
-    // before raising stable=true, so we don't re-time. We DO require at
-    // least one camera frame to have landed (history > 0) — without it
-    // the lock would record dims=null. setLiveDims also re-checks this
-    // condition so the lock can fire as soon as the first frame arrives.
-    const hasDims = s.liveDimsHistory && s.liveDimsHistory.length > 0;
+    // before raising stable=true, so we don't re-time. We need usable
+    // dims — either a fresh frame in history, or a cached liveDims from
+    // a previous lock (same-size next carton, camera won't re-emit).
+    // Also fires from 'relocking' so a swap can re-lock once the new
+    // weight stabilises above the placement threshold.
+    const hasDims = (s.liveDimsHistory && s.liveDimsHistory.length > 0) || s.liveDims != null;
     const wantsLock = stable && above && hasDims
-      && (s.status === 'detected' || next.status === 'detected' || s.pendingId);
+      && (s.status === 'detected' || s.status === 'relocking' || next.status === 'detected' || s.pendingId);
 
     if (wantsLock) {
       let id, counter = s.dailyCounter;
@@ -274,14 +316,14 @@ export const useMeasureStore = create((set, get) => ({
   // Manual reset back to idle so the auto-flow can fire again on the
   // current package without having to physically remove and re-place it.
   // Useful when an early auto-lock missed the camera dims.
+  // Keep `measure` + dims so the previous QR stays scannable until the
+  // next lock replaces it.
   resetSession: () => set((s) => ({
-    measure: null,
     status: 'idle',
     detectedAt: null,
     stableSince: null,
     pendingId: null,
     armedAt: null,
-    liveDimsHistory: [],
     eventLog: appendEvent(s.eventLog, {
       kind: 'user.new',
       text: 'Session réinitialisée — auto-flow réarmé',

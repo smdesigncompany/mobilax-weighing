@@ -3,7 +3,7 @@ import { Card } from '../atoms/Card';
 import { Label } from '../atoms/Label';
 import { Badge } from '../atoms/Badge';
 import { MeasureField } from '../molecules/MeasureField';
-import { useDims, useVol } from '../store/measureStore';
+import { useDims, useVol, useStatus } from '../store/measureStore';
 
 // Locked dimensions panel — shows the values from the validated measure.
 // While no measure has been locked yet the panel reads "—". The live
@@ -11,15 +11,17 @@ import { useDims, useVol } from '../store/measureStore';
 function DimensionsPanelImpl() {
   const { len, width, height } = useDims();
   const vol = useVol();
+  const status = useStatus();
   const hasLocked = len != null || width != null || height != null;
+  const relocking = status === 'relocking';
 
   return (
-    <Card className="p-6">
+    <Card className={`p-6 transition-opacity ${relocking ? 'opacity-50' : ''}`}>
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <Label>Dimensions verrouillées</Label>
-          <Badge tone={hasLocked ? 'success' : 'neutral'}>
-            {hasLocked ? '● Validé' : 'En attente'}
+          <Badge tone={relocking ? 'warning' : hasLocked ? 'success' : 'neutral'}>
+            {relocking ? '↻ Mise à jour…' : hasLocked ? '● Validé' : 'En attente'}
           </Badge>
         </div>
         <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-steel-400">

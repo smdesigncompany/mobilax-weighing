@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import { Card } from '../atoms/Card';
 import { Label } from '../atoms/Label';
 import { Badge } from '../atoms/Badge';
-import { useMeasureStore, useBarcode, useCodeSource } from '../store/measureStore';
+import { useMeasureStore, useBarcode, useCodeSource, useStatus } from '../store/measureStore';
 import { buildQRPayload, renderQRDataURL } from '../services/qrService';
 
 // Subscribes via a derived selector so the QR re-renders only when the
@@ -18,6 +18,8 @@ function QRPanelImpl() {
   const [src, setSrc] = useState(null);
   const barcode = useBarcode();
   const source = useCodeSource();
+  const status = useStatus();
+  const relocking = status === 'relocking';
 
   useEffect(() => {
     let cancelled = false;
@@ -34,19 +36,23 @@ function QRPanelImpl() {
     <Card className="p-6 flex flex-col min-h-[420px]">
       <div className="flex items-center justify-between mb-4">
         <Label>QR Code colis</Label>
-        <Badge tone={src ? 'success' : 'neutral'}>
-          {src ? 'Prêt' : 'En attente'}
+        <Badge tone={relocking ? 'warning' : src ? 'success' : 'neutral'}>
+          {relocking ? '↻ Mise à jour…' : src ? 'Prêt' : 'En attente'}
         </Badge>
       </div>
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
         {src ? (
           <>
-            <div className="relative p-4 bg-white rounded-md shadow-[0_0_40px_-10px_rgba(34,211,238,0.4)]">
+            <div className={`relative p-4 bg-white rounded-md transition-opacity ${
+              relocking
+                ? 'opacity-50 shadow-[0_0_40px_-10px_rgba(56,189,248,0.4)]'
+                : 'shadow-[0_0_40px_-10px_rgba(34,211,238,0.4)]'
+            }`}>
               <img src={src} alt="QR code colis" className="w-[300px] h-[300px] block" />
-              <span className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-accent-500" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-accent-500" />
-              <span className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-accent-500" />
-              <span className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-accent-500" />
+              <span className={`absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 ${relocking ? 'border-sky-400 animate-pulse' : 'border-accent-500'}`} />
+              <span className={`absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 ${relocking ? 'border-sky-400 animate-pulse' : 'border-accent-500'}`} />
+              <span className={`absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 ${relocking ? 'border-sky-400 animate-pulse' : 'border-accent-500'}`} />
+              <span className={`absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 ${relocking ? 'border-sky-400 animate-pulse' : 'border-accent-500'}`} />
             </div>
             {barcode && (
               <div className="flex items-center gap-2 text-center">
