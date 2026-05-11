@@ -3,6 +3,7 @@ import { PreparerPage } from './pages/PreparerPage';
 import { startSerialBridge } from './services/serial';
 import { startBridgeBridge } from './services/bridge';
 import { useMeasureStore } from './store/measureStore';
+import { playLockSound } from './services/sound';
 // Cloud WS (startSocket) is intentionally disabled during COM-only testing.
 
 export default function App() {
@@ -22,6 +23,12 @@ export default function App() {
 
     pushEvent({ kind: 'bridge.init', text: 'startBridgeBridge() called' });
     startBridgeBridge();
+
+    // Beep on each transition into 'locked' (auto-lock, freezeNow, re-figer).
+    const unsub = useMeasureStore.subscribe((s, prev) => {
+      if (s.status === 'locked' && prev.status !== 'locked') playLockSound();
+    });
+    return unsub;
   }, []);
   return <PreparerPage />;
 }
