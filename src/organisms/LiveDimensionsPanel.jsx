@@ -2,15 +2,19 @@ import { memo } from 'react';
 import { Card } from '../atoms/Card';
 import { Label } from '../atoms/Label';
 import { Badge } from '../atoms/Badge';
-import { useLiveDims } from '../store/measureStore';
+import { useLiveDims, useStatus, useLiveWeight } from '../store/measureStore';
 
 // Mirror of LiveWeightPanel for the volumetric camera. Shows the latest
-// frame the bridge delivered, regardless of whether a measure is locked
-// or not. The locked DimensionsPanel below freezes the validated values
-// independently — same pattern as live weight vs locked weight.
+// frame the bridge delivered while a package is actually on the scale.
+// When the scale is empty (status=idle, no weight) the cached dims are
+// hidden — the store keeps them as a same-size-swap fallback for the
+// lock logic, but they shouldn't read as "live" in the UI.
 function LiveDimensionsPanelImpl() {
   const live = useLiveDims();
-  const has = !!live;
+  const status = useStatus();
+  const liveWeight = useLiveWeight();
+  const onScale = status !== 'idle' && liveWeight != null && liveWeight > 0.05;
+  const has = !!live && onScale;
   const len = has ? live.len : null;
   const width = has ? live.width : null;
   const height = has ? live.height : null;
