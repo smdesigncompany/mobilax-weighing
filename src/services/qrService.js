@@ -1,6 +1,9 @@
 import QRCode from 'qrcode';
 
 // Build the QR payload from a measure. Kept tiny for fast scanning.
+// `printer` is the round-robin slot (1/2/3) the print host should use
+// to dispatch the label — included so the printing side can load-balance
+// without queuing on a single device.
 export function buildQRPayload(measure) {
   if (!measure) return null;
   return JSON.stringify({
@@ -10,6 +13,7 @@ export function buildQRPayload(measure) {
     width: measure.width,
     height: measure.height,
     vol: measure.vol,
+    printer: measure.printer,
   });
 }
 

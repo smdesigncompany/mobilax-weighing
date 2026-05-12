@@ -2,8 +2,6 @@ import { memo } from 'react';
 import { Button } from '../atoms/Button';
 import { Badge } from '../atoms/Badge';
 import { useMeasureStore, useStatus, useDailyCounter, useBarcode } from '../store/measureStore';
-import { hasApiConfigured } from '../services/config';
-import { apiFetch } from '../services/socket';
 
 // Replaces the old "Nouveau colis" button with a state-machine status
 // banner. The flow is fully automatic now: place package → detected →
@@ -21,28 +19,10 @@ function NewPackageBarImpl() {
   const daily = useDailyCounter();
   const lockedBarcode = useBarcode();
 
-  const onSimulate = async () => {
+  const onSimulate = () => {
     const store = useMeasureStore.getState();
-    store.pushEvent({ kind: 'user.simulate', text: 'Bouton Simuler cliqué' });
-    if (hasApiConfigured()) {
-      try {
-        const res = await apiFetch('/api/dev/simulate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-        const body = await res.json().catch(() => null);
-        store.pushEvent({
-          kind: res.ok ? 'response.ok' : 'response.error',
-          text: `Réponse API /dev/simulate (${res.status}) — ${body ? JSON.stringify(body).slice(0, 160) : 'pas de corps'}`,
-        });
-      } catch (err) {
-        store.pushEvent({ kind: 'response.error', text: `Erreur réseau simulate: ${err.message}` });
-      }
-      return;
-    }
     const fake = buildLocalFakeMeasure();
-    store.pushEvent({ kind: 'response.ok', text: `Mesure factice générée localement — ${fake.barcode}` });
+    store.pushEvent({ kind: 'user.simulate', text: `Simuler — mesure factice ${fake.barcode}` });
     store.setMeasure(fake, 'simulate');
   };
 

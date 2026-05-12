@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import { Card } from '../atoms/Card';
 import { Label } from '../atoms/Label';
 import { Badge } from '../atoms/Badge';
-import { useMeasureStore, useBarcode, useCodeSource, useStatus } from '../store/measureStore';
+import { useMeasureStore, useBarcode, useCodeSource, useStatus, usePrinter } from '../store/measureStore';
 import { buildQRPayload, renderQRDataURL } from '../services/qrService';
 
 // Subscribes via a derived selector so the QR re-renders only when the
@@ -10,7 +10,15 @@ import { buildQRPayload, renderQRDataURL } from '../services/qrService';
 const selQRSeed = (s) => {
   const m = s.measure;
   if (!m) return null;
-  return `${m.barcode}|${m.weight}|${m.len}|${m.width}|${m.height}|${m.vol}`;
+  return `${m.barcode}|${m.weight}|${m.len}|${m.width}|${m.height}|${m.vol}|${m.printer}`;
+};
+
+// Printer slot → tailwind classes for the badge. Keeps the three slots
+// distinguishable at a glance.
+const PRINTER_TONES = {
+  1: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40',
+  2: 'bg-violet-500/15 text-violet-300 border-violet-500/40',
+  3: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
 };
 
 function QRPanelImpl() {
@@ -19,6 +27,7 @@ function QRPanelImpl() {
   const barcode = useBarcode();
   const source = useCodeSource();
   const status = useStatus();
+  const printer = usePrinter();
   const relocking = status === 'relocking';
 
   useEffect(() => {
@@ -62,6 +71,14 @@ function QRPanelImpl() {
                 ) : source === 'scanned' ? (
                   <span className="text-[9px] uppercase tracking-[0.12em] text-emerald-400 font-semibold">scanné</span>
                 ) : null}
+              </div>
+            )}
+            {printer != null && (
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md border text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                PRINTER_TONES[printer] || 'bg-steel-700/40 text-steel-200 border-steel-600/60'
+              }`}>
+                <span className="text-base leading-none">🖨</span>
+                Imprimante {printer}
               </div>
             )}
           </>

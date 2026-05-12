@@ -29,7 +29,11 @@ function appendEvent(log, entry) {
   return next.length > 100 ? next.slice(-100) : next;
 }
 
-function buildMeasure(id, weight, d) {
+// Number of printers in the round-robin pool. The QR payload carries
+// the slot so the print host can dispatch without queuing on one printer.
+const PRINTER_COUNT = 3;
+
+function buildMeasure(id, weight, d, printer = null) {
   return {
     barcode: id,
     codeSource: 'generated',
@@ -39,7 +43,12 @@ function buildMeasure(id, weight, d) {
     width: d.width ?? null,
     height: d.height ?? null,
     vol: d.vol ?? null,
+    printer,
   };
+}
+
+function pickPrinter(measureCount) {
+  return (measureCount % PRINTER_COUNT) + 1;
 }
 
 // Per-axis median of a small array of dim frames. Robust to outliers and
@@ -149,7 +158,8 @@ export const useMeasureStore = create((set, get) => ({
         id = buildPendingId(counter);
       }
       const d = medianDims(trimmed, dims);
-      next.measure = buildMeasure(id, w, d);
+      const printer = pickPrinter(s.measureCount);
+      next.measure = buildMeasure(id, w, d, printer);
       next.status = 'locked';
       next.dailyCounter = counter;
       next.receivedAt = Date.now();
@@ -160,7 +170,7 @@ export const useMeasureStore = create((set, get) => ({
       next.stableSince = null;
       next.eventLog = appendEvent(s.eventLog, {
         kind: 'measure.locked',
-        text: `Auto — ${id} | ${w.toFixed(2)} kg${dimsTxtOf(d)} (caméra)`,
+        text: `Auto — ${id} | ${w.toFixed(2)} kg${dimsTxtOf(d)} → imp.${printer} (caméra)`,
       });
     }
     return next;
@@ -263,7 +273,8 @@ export const useMeasureStore = create((set, get) => ({
         id = buildPendingId(counter);
       }
       const d = medianDims(s.liveDimsHistory, s.liveDims);
-      next.measure = buildMeasure(id, weight, d);
+      const printer = pickPrinter(s.measureCount);
+      next.measure = buildMeasure(id, weight, d, printer);
       next.status = 'locked';
       next.dailyCounter = counter;
       next.receivedAt = now;
@@ -274,7 +285,7 @@ export const useMeasureStore = create((set, get) => ({
       next.stableSince = null;
       next.eventLog = appendEvent(s.eventLog, {
         kind: 'measure.locked',
-        text: `Auto — ${id} | ${weight.toFixed(2)} kg${dimsTxtOf(d)}`,
+        text: `Auto — ${id} | ${weight.toFixed(2)} kg${dimsTxtOf(d)} → imp.${printer}`,
       });
     }
 
@@ -291,7 +302,8 @@ export const useMeasureStore = create((set, get) => ({
     const id = s.pendingId || buildPendingId(counter);
     const d = s.liveDims || {};
     const w = s.liveWeight;
-    const m = buildMeasure(id, w, d);
+    const printer = pickPrinter(s.measureCount);
+    const m = buildMeasure(id, w, d, printer);
     return {
       measure: m,
       status: 'locked',
@@ -304,7 +316,7 @@ export const useMeasureStore = create((set, get) => ({
       stableSince: null,
       eventLog: appendEvent(s.eventLog, {
         kind: 'measure.locked',
-        text: `Figé manuellement — ${id} | ${w ?? '—'} kg${dimsTxtOf(d)}`,
+        text: `Figé manuellement — ${id} | ${w ?? '—'} kg${dimsTxtOf(d)} → imp.${printer}`,
       }),
     };
   }),
@@ -353,15 +365,17 @@ export const useMeasureStore = create((set, get) => ({
   }),
 
   setMeasure: (measure, source = 'manual') => set((s) => {
+    const printer = measure.printer ?? pickPrinter(s.measureCount);
+    const base = { ...measure, printer };
     const m = s.pendingId
-      ? { ...measure, barcode: s.pendingId, codeSource: 'generated' }
-      : measure;
+      ? { ...base, barcode: s.pendingId, codeSource: 'generated' }
+      : base;
     const dimsTxt = (m.len || m.width || m.height)
       ? ` | L${m.len ?? '?'}×l${m.width ?? '?'}×h${m.height ?? '?'} mm`
       : '';
     return {
       measure: m,
-      status: 'ready',
+      status: 'locked',
       error: null,
       receivedAt: Date.now(),
       measureCount: s.measureCount + 1,
@@ -369,7 +383,7 @@ export const useMeasureStore = create((set, get) => ({
       armedAt: null,
       eventLog: appendEvent(s.eventLog, {
         kind: 'measure.locked',
-        text: `Mesure verrouillée (${source}) — ${m.barcode} | ${m.weight ?? '—'} kg${dimsTxt}`,
+        text: `Mesure verrouillée (${source}) — ${m.barcode} | ${m.weight ?? '—'} kg${dimsTxt} → imp.${printer}`,
       }),
     };
   }),
@@ -415,6 +429,7 @@ const selVol = (s) => s.measure?.vol ?? null;
 const selStatus = (s) => s.status;
 const selConnection = (s) => s.connection;
 const selDatetime = (s) => s.measure?.datetime ?? null;
+const selPrinter = (s) => s.measure?.printer ?? null;
 
 export const useBarcode = () => useMeasureStore(selBarcode);
 export const useCodeSource = () => useMeasureStore(selCodeSource);
@@ -432,6 +447,7 @@ export const useVol = () => useMeasureStore(selVol);
 export const useStatus = () => useMeasureStore(selStatus);
 export const useConnection = () => useMeasureStore(selConnection);
 export const useDatetime = () => useMeasureStore(selDatetime);
+export const usePrinter = () => useMeasureStore(selPrinter);
 
 // Snapshot getter for non-reactive consumers (QR generation on demand)
 export const getMeasureSnapshot = () => useMeasureStore.getState().measure;
